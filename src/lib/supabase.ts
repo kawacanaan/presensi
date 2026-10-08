@@ -4,16 +4,11 @@ export function getClientSupabaseConfig() {
   const win = typeof window !== 'undefined' ? (window as any) : {};
   const cfEnv = win.__CLOUDFLARE_ENV__ || win.__ENV__ || {};
 
-  const candidates = [
-    cfEnv.SUPABASE_URL,
-    (import.meta.env.VITE_SUPABASE_URL as string),
-    cfEnv.VITE_SUPABASE_URL,
-  ];
-
-  let url = candidates.find((c) => c && typeof c === 'string' && c.includes('.supabase.co')) || '';
-  if (!url) {
-    url = candidates.find((c) => c && typeof c === 'string' && c.trim() && !c.includes('placeholder')) || '';
-  }
+  const url =
+    cfEnv.VITE_SUPABASE_URL ||
+    cfEnv.SUPABASE_URL ||
+    (import.meta.env.VITE_SUPABASE_URL as string) ||
+    '';
 
   const key =
     cfEnv.VITE_SUPABASE_PUBLISHABLE_KEY ||
@@ -58,12 +53,12 @@ export function reconfigureSupabase(url: string, key: string) {
   }
 }
 
-// Background bootstrap: jika saat build belum ada kredensial valid, ambil dari /api/config
-if (typeof window !== 'undefined' && (!supabaseUrl || !supabaseUrl.includes('.supabase.co') || supabaseUrl.includes('placeholder'))) {
+// Background bootstrap: jika saat build belum ada kredensial, ambil dari Cloudflare Worker /api/config
+if (typeof window !== 'undefined' && (!supabaseUrl || supabaseUrl.includes('placeholder'))) {
   fetch('/api/config')
     .then((r) => r.json())
     .then((data) => {
-      if (data?.ok && data.supabaseUrl && data.supabaseAnonKey && (data.supabaseUrl.includes('.supabase.co') || !data.supabaseUrl.includes('placeholder'))) {
+      if (data?.ok && data.supabaseUrl && data.supabaseAnonKey && !data.supabaseUrl.includes('placeholder')) {
         reconfigureSupabase(data.supabaseUrl, data.supabaseAnonKey);
       }
     })

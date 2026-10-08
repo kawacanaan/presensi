@@ -209,26 +209,8 @@ export const SuperAdminView: React.FC = () => {
   };
 
   const token = async () => {
-    try {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.access_token) return data.session.access_token;
-    } catch (_) {}
-
-    if (currentUser?.id && currentUser.role === 'SUPER_ADMIN') {
-      return `superadmin_session_${currentUser.id}`;
-    }
-
-    try {
-      const cached = localStorage.getItem('kawacanaan_cached_user_session');
-      if (cached) {
-        const u = JSON.parse(cached);
-        if (u.id && u.role === 'SUPER_ADMIN') {
-          return `superadmin_session_${u.id}`;
-        }
-      }
-    } catch (_) {}
-
-    return '';
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || '';
   };
 
   const call = async (action: string, p: any = {}) => {

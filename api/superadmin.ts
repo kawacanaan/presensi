@@ -157,25 +157,8 @@ async function saveSchoolNote(admin: any, schoolId: string, note: string | null)
 export default async function handler(req: any, res: any, env?: any) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   const cfEnv = env || req?.env || {};
-  const sbCandidates = [
-    cfEnv.SUPABASE_URL,
-    process.env.SUPABASE_URL,
-    cfEnv.VITE_SUPABASE_URL,
-    process.env.VITE_SUPABASE_URL,
-  ];
-  const url =
-    sbCandidates.find((u) => u && typeof u === 'string' && u.includes('.supabase.co')) ||
-    cfEnv.SUPABASE_URL ||
-    process.env.SUPABASE_URL ||
-    cfEnv.VITE_SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL ||
-    '';
-  const key =
-    cfEnv.SUPABASE_SERVICE_ROLE_KEY ||
-    cfEnv.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SECRET_KEY ||
-    '';
+  const url = cfEnv.SUPABASE_URL || cfEnv.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const key = cfEnv.SUPABASE_SERVICE_ROLE_KEY || cfEnv.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
   const { action } = req.body || {};
 
   // Aksi Publik: Akses logo & nama platform publik tanpa perlu token auth
@@ -209,67 +192,24 @@ export default async function handler(req: any, res: any, env?: any) {
     return json(res, 500, { error: 'SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY wajib tersedia pada environment Cloudflare Worker atau Vercel.' });
   }
 
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  const superSecret = req.headers['x-superadmin-secret'] || req.headers['x-superadmin-key'];
-  if (!token && !superSecret) return json(res, 401, { error: 'Unauthorized' });
-
-  const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-
-  let caller: any = null;
-  let profile: any = null;
-
-  // 1. Cek sesi client superadmin_session_{userId} terverifikasi langsung ke tabel profiles
-  if (token && token.startsWith('superadmin_session_')) {
-    const userId = token.replace('superadmin_session_', '').trim();
-    if (userId) {
-      const { data: saUser } = await admin
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .eq('role', 'SUPER_ADMIN')
-        .maybeSingle();
-      if (saUser && saUser.is_active !== false) {
-        profile = saUser;
-        caller = { user: { id: saUser.id, email: saUser.email } };
-      }
-    }
+  const token=(req.headers.authorization||'').replace(/^Bearer\s+/i,'').trim();
+  if(!token) return json(res,401,{error:'Unauthorized'});
+  const admin=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+  const {data:caller,error:callerError}=await admin.auth.getUser(token);
+  if(callerError||!caller.user) return json(res,401,{error:'Invalid session'});
+  let {data:profile}=await admin.from('profiles').select('*').eq('id',caller.user.id).maybeSingle();
+  if(!profile && caller.user.email) {
+    const {data:saByEmail}=await admin
+      .from('profiles')
+      .select('*')
+      .eq('role','SUPER_ADMIN')
+      .ilike('email',caller.user.email.trim())
+      .maybeSingle();
+    if(saByEmail) profile=saByEmail;
   }
-
-  // 2. Cek token JWT standar Supabase Auth
-  if (!profile && token) {
-    const { data: authCaller, error: callerError } = await admin.auth.getUser(token);
-    if (!callerError && authCaller?.user) {
-      caller = authCaller;
-      let { data: userProfile } = await admin
-        .from('profiles')
-        .select('*')
-        .eq('id', caller.user.id)
-        .maybeSingle();
-      if (!userProfile && caller.user.email) {
-        const { data: saByEmail } = await admin
-          .from('profiles')
-          .select('*')
-          .eq('role', 'SUPER_ADMIN')
-          .ilike('email', caller.user.email.trim())
-          .maybeSingle();
-        if (saByEmail) userProfile = saByEmail;
-      }
-      profile = userProfile;
-    }
-  }
-
-  // 3. Fallback header secret setup superadmin
-  if (!profile && superSecret && process.env.SUPERADMIN_SETUP_SECRET && superSecret === process.env.SUPERADMIN_SETUP_SECRET) {
-    const { data: saAny } = await admin.from('profiles').select('*').eq('role', 'SUPER_ADMIN').limit(1).maybeSingle();
-    if (saAny) {
-      profile = saAny;
-      caller = { user: { id: saAny.id, email: saAny.email } };
-    }
-  }
-
   const callerRole = String(profile?.role || '').toUpperCase().trim();
-  if (!profile || callerRole !== 'SUPER_ADMIN' || profile.is_active === false) {
-    return json(res, 403, { error: 'SUPER ADMIN privileges required' });
+  if(!profile || callerRole!=='SUPER_ADMIN' || profile.is_active===false) {
+    return json(res,403,{error:'SUPER ADMIN privileges required'});
   }
 
   try{

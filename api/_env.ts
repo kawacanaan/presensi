@@ -27,12 +27,8 @@ export function setWorkerEnv(env: Record<string, any> | undefined | null) {
   // 3. Normalisasi alias kunci penting (Supabase, Midtrans, AI)
   const p = (globalThis as any).process.env;
 
-  const sbCandidates = [p.SUPABASE_URL, p.VITE_SUPABASE_URL];
-  const preferredSbUrl = sbCandidates.find((u) => u && typeof u === 'string' && u.includes('.supabase.co')) || p.SUPABASE_URL || p.VITE_SUPABASE_URL;
-  if (preferredSbUrl) {
-    p.SUPABASE_URL = preferredSbUrl;
-    p.VITE_SUPABASE_URL = preferredSbUrl;
-  }
+  if (!p.SUPABASE_URL && p.VITE_SUPABASE_URL) p.SUPABASE_URL = p.VITE_SUPABASE_URL;
+  if (!p.VITE_SUPABASE_URL && p.SUPABASE_URL) p.VITE_SUPABASE_URL = p.SUPABASE_URL;
 
   if (!p.SUPABASE_SERVICE_ROLE_KEY && p.SUPABASE_SECRET_KEY) p.SUPABASE_SERVICE_ROLE_KEY = p.SUPABASE_SECRET_KEY;
   if (!p.SUPABASE_SECRET_KEY && p.SUPABASE_SERVICE_ROLE_KEY) p.SUPABASE_SECRET_KEY = p.SUPABASE_SERVICE_ROLE_KEY;
@@ -67,11 +63,9 @@ export function getEnv(key: string, env?: any, req?: any, fallback = ''): string
 }
 
 export function getSupabaseConfig(env?: any, req?: any) {
-  const sbCandidates = [
-    getEnv('SUPABASE_URL', env, req),
-    getEnv('VITE_SUPABASE_URL', env, req),
-  ];
-  const url = sbCandidates.find((u) => u && typeof u === 'string' && u.includes('.supabase.co')) || sbCandidates[0] || sbCandidates[1] || '';
+  const url =
+    getEnv('SUPABASE_URL', env, req) ||
+    getEnv('VITE_SUPABASE_URL', env, req);
 
   const serviceKey =
     getEnv('SUPABASE_SERVICE_ROLE_KEY', env, req) ||
