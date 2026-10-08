@@ -1,0 +1,6 @@
+{
+  "name": "Kawacanaan Presensi",
+  "description": "Sistem Presensi Digital Terpadu Sekolah — Presensi Harian Wali Kelas, Presensi Guru Mapel, Portal Siswa & Wali Murid (Monitoring Real-time, Pengajuan Izin Sakit & Notifikasi WhatsApp), dan Kontrol Multi-Tenant.",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

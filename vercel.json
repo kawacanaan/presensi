@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/teacher-subject", "destination": "/api/sync-teacher-assignments" },
+    { "source": "/api/payments", "destination": "/api/midtrans" },
+    { "source": "/api/midtrans-webhook", "destination": "/api/midtrans" },
+    { "source": "/api/midtrans/webhook", "destination": "/api/midtrans" },
+    { "source": "/api/billing/webhook", "destination": "/api/midtrans" },
+    { "source": "/((?!api/.*).*)", "destination": "/index.html" }
+  ]
+}
+

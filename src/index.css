@@ -1,0 +1,385 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #F8FAFC;
+    color: #0F172A;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+  }
+
+  /* Clean light scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #F1F5F9;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2563EB;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm 12mm 15mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 10.5pt !important;
+    line-height: 1.3 !important;
+    width: 100% !important;
+  }
+
+  header, nav, button, .print\:hidden {
+    display: none !important;
+  }
+
+  #printable-report,
+  #legal-printable-content {
+    padding: 0 !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  .break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .kop-surat-a4-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 0 12pt 0 !important;
+    padding: 0 0 4pt 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .kop-surat-a4-img {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: 38mm !important;
+    object-fit: contain !important;
+    display: block !important;
+    margin: 0 auto !important;
+    image-rendering: -webkit-optimize-contrast !important;
+  }
+}
+
+
+/* Landing page styles */
+@layer base {
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    scroll-behavior: smooth;
+  }
+}
+.font-serif-display {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* ==========================================================================
+   Educational Book Loader & Soft Blue-Green Animations
+   ========================================================================== */
+@keyframes bookFloatSoft {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(-0.5deg);
+  }
+}
+
+@keyframes pageTurnSlow1 {
+  0%, 10% {
+    transform: perspective(700px) rotateY(0deg);
+    background-color: #F0FDF4;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  48%, 52% {
+    background-color: #E0F2FE;
+    box-shadow: -4px 6px 12px rgba(14, 165, 233, 0.15);
+  }
+  90%, 100% {
+    transform: perspective(700px) rotateY(-180deg);
+    background-color: #ECFDF5;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+}
+
+@keyframes pageTurnSlow2 {
+  0%, 25% {
+    transform: perspective(700px) rotateY(0deg);
+    background-color: #F8FAFC;
+  }
+  60%, 65% {
+    background-color: #DCFCE7;
+    box-shadow: -4px 6px 12px rgba(16, 185, 129, 0.15);
+  }
+  95%, 100% {
+    transform: perspective(700px) rotateY(-180deg);
+    background-color: #F0FDF4;
+  }
+}
+
+@keyframes pageTurnSlow3 {
+  0%, 40% {
+    transform: perspective(700px) rotateY(0deg);
+    background-color: #F0F9FF;
+  }
+  75%, 80% {
+    background-color: #E0F2FE;
+  }
+  98%, 100% {
+    transform: perspective(700px) rotateY(-180deg);
+    background-color: #F8FAFC;
+  }
+}
+
+@keyframes softAuraPulse {
+  0%, 100% {
+    transform: scale(0.92);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.75;
+  }
+}
+
+@keyframes progressShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.animate-book-float {
+  animation: bookFloatSoft 3.6s ease-in-out infinite;
+}
+
+.animate-page-turn-1 {
+  transform-origin: left center;
+  animation: pageTurnSlow1 2.8s cubic-bezier(0.45, 0.05, 0.25, 0.95) infinite;
+  backface-visibility: hidden;
+}
+
+.animate-page-turn-2 {
+  transform-origin: left center;
+  animation: pageTurnSlow2 2.8s cubic-bezier(0.45, 0.05, 0.25, 0.95) 0.4s infinite;
+  backface-visibility: hidden;
+}
+
+.animate-page-turn-3 {
+  transform-origin: left center;
+  animation: pageTurnSlow3 2.8s cubic-bezier(0.45, 0.05, 0.25, 0.95) 0.8s infinite;
+  backface-visibility: hidden;
+}
+
+.animate-soft-aura {
+  animation: softAuraPulse 3s ease-in-out infinite;
+}
+
+.animate-shimmer-progress {
+  animation: progressShimmer 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Glowing Circular Loader Animations */
+@keyframes spinGlowCircle {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spinGlowReverse {
+  0% {
+    transform: rotate(360deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes glowPulseCenter {
+  0%, 100% {
+    transform: scale(0.95);
+    opacity: 0.85;
+    filter: drop-shadow(0 0 16px rgba(37, 99, 235, 0.6)) drop-shadow(0 0 32px rgba(16, 185, 129, 0.4));
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+    filter: drop-shadow(0 0 24px rgba(37, 99, 235, 0.95)) drop-shadow(0 0 48px rgba(16, 185, 129, 0.65));
+  }
+}
+
+@keyframes radialAuraBreath {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.75;
+  }
+}
+
+.animate-spin-glow-circle {
+  animation: spinGlowCircle 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-spin-reverse-circle {
+  animation: spinGlowReverse 3s linear infinite;
+}
+
+.animate-glow-pulse-center {
+  animation: glowPulseCenter 2.2s ease-in-out infinite;
+}
+
+.animate-radial-aura-breath {
+  animation: radialAuraBreath 2.6s ease-in-out infinite;
+}
+
+@keyframes kokaFloat {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(1.5deg);
+  }
+}
+
+.animate-koka-float {
+  animation: kokaFloat 3.2s ease-in-out infinite;
+}
+
+@keyframes kokaThruster {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scaleX(0.85);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scaleX(1.2);
+  }
+}
+
+.animate-koka-thruster {
+  animation: kokaThruster 1.4s ease-in-out infinite;
+}
+
+/* Texture Pattern Utilities */
+.bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(11, 47, 100, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(11, 47, 100, 0.07) 1px, transparent 1px);
+}
+
+.bg-dot-pattern {
+  background-size: 24px 24px;
+  background-image: radial-gradient(rgba(11, 47, 100, 0.12) 1.2px, transparent 1.2px);
+}
+
+/* Rotating colorful border beam (conic gradient border effect) */
+@keyframes spinBorder {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-border {
+  animation: spinBorder 3s linear infinite;
+}
+
+@keyframes spinBorderFast {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-border-fast {
+  animation: spinBorderFast 2s linear infinite;
+}
+
+/* Light sheen / shimmer sweeping across button */
+@keyframes shimmerSweep {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  40%, 100% {
+    transform: translateX(250%) skewX(-20deg);
+  }
+}
+
+.animate-shimmer-sweep {
+  animation: shimmerSweep 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Pulse glow for button */
+@keyframes pulseAura {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+.animate-pulse-aura {
+  animation: pulseAura 2.5s ease-in-out infinite;
+}
+
+
