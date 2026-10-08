@@ -484,8 +484,11 @@ ${dynamicContextBlock}
   }
 
   // 5. Verify AI credentials (Gemini or Cloudflare)
-  const hasGemini = Boolean(process.env.GEMINI_API_KEY);
-  const hasCloudflare = Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN);
+  const hasGemini = Boolean(getEnv('GEMINI_API_KEY', cfEnv) || process.env.GEMINI_API_KEY);
+  const hasCloudflare = Boolean(
+    (getEnv('CLOUDFLARE_ACCOUNT_ID', cfEnv) || process.env.CLOUDFLARE_ACCOUNT_ID) &&
+    (getEnv('CLOUDFLARE_API_TOKEN', cfEnv) || process.env.CLOUDFLARE_API_TOKEN)
+  );
 
   if (!hasGemini && !hasCloudflare) {
     return json(res, 500, {
