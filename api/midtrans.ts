@@ -175,14 +175,15 @@ async function getMidtransConfig(db: any): Promise<MidtransConfig> {
   };
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: any, res: any, env?: any) {
   // Allow POST and GET
   if (req.method !== 'POST' && req.method !== 'GET') {
     return json(res, 405, { error: 'Method not allowed' });
   }
 
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+  const cfEnv = env || req?.env || {};
+  const url = cfEnv.SUPABASE_URL || cfEnv.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const key = cfEnv.SUPABASE_SERVICE_ROLE_KEY || cfEnv.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
 
   const b = req.body || {};
   const q = req.query || {};
@@ -203,10 +204,12 @@ export default async function handler(req: any, res: any) {
       action !== 'get_invoice')
   ) {
     let clientKey =
+      cfEnv.MIDTRANS_CLIENT_KEY?.trim() ||
+      cfEnv.VITE_MIDTRANS_CLIENT_KEY?.trim() ||
       process.env.MIDTRANS_CLIENT_KEY?.trim() ||
       process.env.VITE_MIDTRANS_CLIENT_KEY?.trim() ||
       '';
-    let serverKey = process.env.MIDTRANS_SERVER_KEY?.trim() || '';
+    let serverKey = cfEnv.MIDTRANS_SERVER_KEY?.trim() || process.env.MIDTRANS_SERVER_KEY?.trim() || '';
     let isProd = resolveIsProduction();
     let isConfigured = Boolean(clientKey && serverKey);
     let enabled = isConfigured;

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getEnv } from './_env';
 
 const json = (res: any, status: number, body: unknown) =>
   res.status(status).setHeader('Content-Type', 'application/json').end(JSON.stringify(body));
@@ -176,10 +177,11 @@ function sanitizeText(text: string): string {
  */
 async function callCloudflareWorkersAI(
   messages: Array<{ role: string; content: string }>,
-  modelName = '@cf/zai-org/glm-4.7-flash'
+  modelName = '@cf/zai-org/glm-4.7-flash',
+  env?: any
 ): Promise<string> {
-  const cfAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const cfApiToken = process.env.CLOUDFLARE_API_TOKEN;
+  const cfAccountId = getEnv('CLOUDFLARE_ACCOUNT_ID', env);
+  const cfApiToken = getEnv('CLOUDFLARE_API_TOKEN', env);
 
   if (!cfAccountId || !cfApiToken) {
     throw new Error('Konfigurasi Cloudflare Workers AI (CLOUDFLARE_ACCOUNT_ID atau CLOUDFLARE_API_TOKEN) belum disetel di server.');
@@ -245,9 +247,10 @@ async function callCloudflareWorkersAI(
  */
 async function callGeminiAI(
   messages: Array<{ role: string; content: string }>,
-  systemInstruction?: string
+  systemInstruction?: string,
+  env?: any
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getEnv('GEMINI_API_KEY', env);
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY belum disetel di server.');
   }
@@ -283,28 +286,34 @@ async function callGeminiAI(
  */
 async function callAIProvider(
   messages: Array<{ role: string; content: string }>,
-  systemInstruction?: string
+  systemInstruction?: string,
+  env?: any
 ): Promise<string> {
-  if (process.env.GEMINI_API_KEY) {
+  const geminiKey = getEnv('GEMINI_API_KEY', env);
+  const cfAccountId = getEnv('CLOUDFLARE_ACCOUNT_ID', env);
+  const cfApiToken = getEnv('CLOUDFLARE_API_TOKEN', env);
+
+  if (geminiKey) {
     try {
-      return await callGeminiAI(messages, systemInstruction);
+      return await callGeminiAI(messages, systemInstruction, env);
     } catch (geminiErr: any) {
       console.warn('[AI] Gemini generation error, attempting Cloudflare fallback:', geminiErr?.message);
-      if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) {
-        return await callCloudflareWorkersAI(messages);
+      if (cfAccountId && cfApiToken) {
+        return await callCloudflareWorkersAI(messages, undefined, env);
       }
       throw geminiErr;
     }
   }
 
-  if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) {
-    return await callCloudflareWorkersAI(messages);
+  if (cfAccountId && cfApiToken) {
+    return await callCloudflareWorkersAI(messages, undefined, env);
   }
 
   throw new Error('Konfigurasi AI (GEMINI_API_KEY atau CLOUDFLARE_ACCOUNT_ID) belum disetel di server.');
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: any, res: any, env?: any) {
+  const cfEnv = env || req?.env || {};
   // 1. Only allow POST
   if (req.method !== 'POST') {
     return json(res, 405, { ok: false, error: 'Metode permintaan tidak diizinkan. Gunakan POST.' });
@@ -409,7 +418,7 @@ ${dynamicContextBlock}
         { role: 'user', content: sanitizedQuestion },
       ];
 
-      const rawText = await callAIProvider(messages, landingInstructionText);
+      const rawText = await callAIProvider(messages, landingInstructionText, cfEnv);
       if (rawText && rawText.trim()) {
         const cleanedText = rawText.replace(/^```(?:json)?\s*|\s*```$/gi, '').trim();
         return json(res, 200, {
@@ -437,8 +446,8 @@ ${dynamicContextBlock}
   // DASHBOARD TEACHER ASSISTANT (AUTHENTICATED)
   // -------------------------------------------------------------
   // 2. Validate Supabase environment configuration
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+  const url = cfEnv.SUPABASE_URL || cfEnv.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const serviceKey = cfEnv.SUPABASE_SERVICE_ROLE_KEY || cfEnv.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
   if (!url || !serviceKey) {
     return json(res, 500, {
       ok: false,
@@ -524,7 +533,7 @@ ${dynamicContextBlock}
       { role: 'user', content: sanitizedQuestion },
     ];
 
-    const rawAnswer = await callAIProvider(messages, systemInstructionText);
+    const rawAnswer = await callAIProvider(messages, systemInstructionText, cfEnv);
 
     if (!rawAnswer) {
       return json(res, 200, {

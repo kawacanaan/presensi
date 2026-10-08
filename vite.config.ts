@@ -37,6 +37,35 @@ function vercelApiDevPlugin(env: Record<string, string>): Plugin {
           routeName = rewrites[routeName];
         }
 
+        if (routeName === 'config' || routeName === 'public-config') {
+          const supabaseUrl =
+            process.env.VITE_SUPABASE_URL ||
+            process.env.SUPABASE_URL ||
+            env.VITE_SUPABASE_URL ||
+            env.SUPABASE_URL ||
+            '';
+          const supabaseAnonKey =
+            process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+            process.env.VITE_SUPABASE_ANON_KEY ||
+            process.env.SUPABASE_ANON_KEY ||
+            process.env.SUPABASE_PUBLISHABLE_KEY ||
+            env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+            env.VITE_SUPABASE_ANON_KEY ||
+            env.SUPABASE_ANON_KEY ||
+            env.SUPABASE_PUBLISHABLE_KEY ||
+            '';
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              ok: true,
+              supabaseUrl,
+              supabaseAnonKey,
+              isConfigured: Boolean(supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('placeholder')),
+            })
+          );
+          return;
+        }
+
         const apiFilePath = path.resolve(__dirname, 'api', `${routeName}.ts`);
         if (!fs.existsSync(apiFilePath)) {
           return next();
@@ -103,7 +132,31 @@ function vercelApiDevPlugin(env: Record<string, string>): Plugin {
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+
+  const supabaseUrl =
+    process.env.VITE_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    env.VITE_SUPABASE_URL ||
+    env.SUPABASE_URL ||
+    '';
+
+  const supabaseAnonKey =
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    env.VITE_SUPABASE_ANON_KEY ||
+    env.SUPABASE_ANON_KEY ||
+    env.SUPABASE_PUBLISHABLE_KEY ||
+    '';
+
   return {
+    define: {
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
+      'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(supabaseAnonKey),
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseAnonKey),
+    },
     plugins: [react(), tailwindcss(), vercelApiDevPlugin(env)],
     resolve: {
       alias: {

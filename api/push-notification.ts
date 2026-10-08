@@ -1,23 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
+import { getEnv } from './_env';
 
 const json = (res: any, status: number, body: unknown) =>
   res.status(status).setHeader('Content-Type', 'application/json').end(JSON.stringify(body));
 
-export function getVapidPublicKey() {
+export function getVapidPublicKey(env?: any) {
   return (
-    process.env.VAPID_PUBLIC_KEY ||
+    getEnv('VAPID_PUBLIC_KEY', env) ||
     'BNSuY-J6kJLXJMSV0FrVIEKWHRurVtBRDeXBsdEkgscj9xwoTi6Ffe_-ZzKwnkSsVSvhRJruvO8LVhXIAtu66_0'
   );
 }
 
-export function ensureVapidConfigured() {
-  const pub = getVapidPublicKey();
+export function ensureVapidConfigured(env?: any) {
+  const pub = getVapidPublicKey(env);
   const priv =
-    process.env.VAPID_PRIVATE_KEY ||
+    getEnv('VAPID_PRIVATE_KEY', env) ||
     'fr-UyVgkzNyNR5xLmwmvWA2OrkOyEj4AcUbHR2J4QNc';
   const sub =
-    process.env.VAPID_SUBJECT ||
+    getEnv('VAPID_SUBJECT', env) ||
     'mailto:notifikasi@kawacanaan.id';
   try {
     webpush.setVapidDetails(sub, pub, priv);
@@ -42,15 +43,16 @@ const fallbackSubscriptions = new Map<string, Array<{
   createdAt: string;
 }>>();
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: any, res: any, env?: any) {
+  const cfEnv = env || req?.env || {};
   // GET: Public key or status check
   if (req.method === 'GET') {
     const action = req.query?.action || 'vapid_key';
     if (action === 'vapid_key') {
-      ensureVapidConfigured();
+      ensureVapidConfigured(cfEnv);
       return json(res, 200, {
         ok: true,
-        publicKey: getVapidPublicKey(),
+        publicKey: getVapidPublicKey(cfEnv),
       });
     }
 
@@ -297,13 +299,12 @@ export async function sendAttendancePushToStudent(params: {
   };
 }
 
-function getAdminClient() {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+function getAdminClient(env?: any) {
+  const url = getEnv('SUPABASE_URL', env) || getEnv('VITE_SUPABASE_URL', env);
   const serviceKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY ||
-    '';
+    getEnv('SUPABASE_SERVICE_ROLE_KEY', env) ||
+    getEnv('SUPABASE_SECRET_KEY', env) ||
+    getEnv('VITE_SUPABASE_ANON_KEY', env);
   if (!url || !serviceKey) return null;
   return createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },

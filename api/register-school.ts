@@ -51,11 +51,12 @@ const getPlanLimits = (plan: string, role?: string) => {
   return { max_teachers: 1, max_students: 50, max_classes: 1, days: null, defaultClasses: 1, name: 'Paket Guru Gratis' };
 };
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: any, res: any, env?: any) {
   if (req.method !== 'POST') {
     return json(res, 405, { error: 'Method not allowed. Gunakan metode POST.' });
   }
 
+  const cfEnv = env || req?.env || {};
   const body = req.body || {};
   const npsn = String(body.npsn || '').replace(/\D/g, '').trim();
   const schoolName = String(body.schoolName || body.namaSekolah || '').trim();
@@ -108,8 +109,8 @@ export default async function handler(req: any, res: any) {
   const adminUsername = customUsername || `admin.${schoolCode.toLowerCase()}`;
   const authEmail = adminEmail || `${adminUsername}@login.kawacanaan.local`;
 
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+  const url = cfEnv.SUPABASE_URL || cfEnv.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const serviceKey = cfEnv.SUPABASE_SERVICE_ROLE_KEY || cfEnv.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
 
   // Mode Fallback jika Supabase belum dikonfigurasi (untuk preview / offline mode)
   if (!url || !serviceKey) {

@@ -1,11 +1,17 @@
-import { supabase, usernameToEmail } from './supabase';
+import { supabase, usernameToEmail, getClientSupabaseConfig } from './supabase';
 
 export { supabase };
 
 export const isSupabaseConfigured = () => {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const key = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY) as string | undefined;
-  return Boolean(url && key && !url.includes('your-project-id') && !url.includes('placeholder') && key !== 'your-anon-key' && key !== 'placeholder-anon-key');
+  const { url, key } = getClientSupabaseConfig();
+  return Boolean(
+    url &&
+    key &&
+    !url.includes('your-project-id') &&
+    !url.includes('placeholder') &&
+    key !== 'your-anon-key' &&
+    key !== 'placeholder-anon-key'
+  );
 };
 
 export const signInWithEmail = async (identifier: string, password: string) => {

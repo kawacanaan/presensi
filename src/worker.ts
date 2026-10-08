@@ -32,6 +32,7 @@ export interface Env {
   SUPABASE_SECRET_KEY?: string;
   SUPABASE_ANON_KEY?: string;
   VITE_SUPABASE_ANON_KEY?: string;
+  VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   MIDTRANS_CLIENT_KEY?: string;
   VITE_MIDTRANS_CLIENT_KEY?: string;
   MIDTRANS_SERVER_KEY?: string;
@@ -64,7 +65,7 @@ const ROUTES: Record<string, ApiHandler> = {
   'sync-teacher-assignments': handleSyncTeacherAssignments,
   'sync-wali-kelas': handleSyncWaliKelas,
 
-  // Aliases & Rewrites
+  // Aliases & Rewrites (kompatibilitas Vercel / Midtrans)
   'teacher-subject': handleSyncTeacherAssignments,
   'payments': handleMidtrans,
   'midtrans-webhook': handleMidtrans,
@@ -112,7 +113,34 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     });
   }
 
-  // 2. Cari route handler yang cocok
+  // 2. Endpoint khusus konfigurasi publik runtime (/api/config)
+  if (url.pathname === '/api/config' || url.pathname === '/api/public-config') {
+    const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL || '';
+    const supabaseAnonKey =
+      env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+      env.VITE_SUPABASE_ANON_KEY ||
+      env.SUPABASE_ANON_KEY ||
+      env.SUPABASE_PUBLISHABLE_KEY ||
+      '';
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        supabaseUrl,
+        supabaseAnonKey,
+        isConfigured: Boolean(supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('placeholder')),
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-store',
+        },
+      }
+    );
+  }
+
+  // 3. Cari route handler yang cocok
   const handler = resolveRoute(url.pathname);
   if (!handler) {
     return new Response(
@@ -130,22 +158,22 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  // 3. Sinkronisasikan Environment Variables Cloudflare Worker ke process.env
+  // 4. Sinkronisasikan Environment Variables Cloudflare Worker ke process.env
   setWorkerEnv(env);
 
-  // 4. Parse query parameters
+  // 5. Parse query parameters
   const query: Record<string, string> = {};
   url.searchParams.forEach((val, key) => {
     query[key] = val;
   });
 
-  // 5. Parse headers
+  // 6. Parse headers
   const headers: Record<string, string> = {};
   request.headers.forEach((val, key) => {
     headers[key.toLowerCase()] = val;
   });
 
-  // 6. Parse request body
+  // 7. Parse request body
   let body: any = {};
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
     const contentType = request.headers.get('content-type') || '';
@@ -175,7 +203,7 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  // 7. Siapkan objek `req`
+  // 8. Siapkan objek `req` dengan menyertakan env langsung
   const req: any = {
     method: request.method,
     url: request.url,
@@ -186,7 +214,7 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     rawRequest: request,
   };
 
-  // 8. Siapkan objek `res` dan Promise resolusi
+  // 9. Siapkan objek `res` dan Promise resolusi
   let statusCode = 200;
   const resHeaders = new Headers();
   let resBody: BodyInit | null = null;
@@ -264,7 +292,7 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     },
   };
 
-  // 9. Jalankan handler
+  // 10. Jalankan handler dengan menyertakan env langsung
   try {
     const maybePromise = handler(req, res, env);
     if (maybePromise && typeof maybePromise.then === 'function') {
@@ -299,22 +327,60 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    // Rute API
+    // 1. Rute API Backend (/api/*)
     if (url.pathname.startsWith('/api/')) {
       return handleApiRequest(request, env);
     }
 
-    // Static Assets Frontend (./dist)
+    // 2. Static Assets Frontend (./dist)
     if (env.ASSETS) {
       let assetResponse = await env.ASSETS.fetch(request);
 
       // SPA Fallback: Jika aset tidak ditemukan (404) dan bukan file berekstensi,
-      // sajikan /index.html agar routing React Router / client-side berfungsi normal
-      if (assetResponse.status === 404 && request.method === 'GET') {
-        const isStaticAsset = /\.[a-zA-Z0-9]+$/.test(url.pathname);
-        if (!isStaticAsset) {
-          const indexRequest = new Request(new URL('/index.html', request.url).toString(), request);
-          assetResponse = await env.ASSETS.fetch(indexRequest);
+      // sajikan /index.html agar routing React SPA berfungsi normal
+      const isFileRequest = /\.[a-zA-Z0-9]+$/.test(url.pathname);
+      if (assetResponse.status === 404 && request.method === 'GET' && !isFileRequest) {
+        const indexRequest = new Request(new URL('/index.html', request.url).toString(), request);
+        assetResponse = await env.ASSETS.fetch(indexRequest);
+      }
+
+      // Injeksi otomatis runtime environment Supabase ke dalam HTML
+      const contentType = assetResponse.headers.get('content-type') || '';
+      if (
+        (contentType.includes('text/html') || url.pathname === '/' || url.pathname.endsWith('.html')) &&
+        assetResponse.ok
+      ) {
+        const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL || '';
+        const supabaseAnonKey =
+          env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+          env.VITE_SUPABASE_ANON_KEY ||
+          env.SUPABASE_ANON_KEY ||
+          env.SUPABASE_PUBLISHABLE_KEY ||
+          '';
+
+        if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
+          try {
+            const html = await assetResponse.text();
+            const configScript = `<script id="__CLOUDFLARE_RUNTIME_CONFIG__">window.__CLOUDFLARE_ENV__=${JSON.stringify({
+              VITE_SUPABASE_URL: supabaseUrl,
+              VITE_SUPABASE_PUBLISHABLE_KEY: supabaseAnonKey,
+              VITE_SUPABASE_ANON_KEY: supabaseAnonKey,
+            })};</script>`;
+
+            const modifiedHtml = html.includes('</head>')
+              ? html.replace('</head>', `${configScript}</head>`)
+              : configScript + html;
+
+            const newHeaders = new Headers(assetResponse.headers);
+            newHeaders.set('cache-control', 'no-cache, must-revalidate');
+
+            return new Response(modifiedHtml, {
+              status: assetResponse.status,
+              headers: newHeaders,
+            });
+          } catch (_) {
+            return assetResponse;
+          }
         }
       }
 

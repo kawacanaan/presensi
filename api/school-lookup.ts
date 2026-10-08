@@ -26,11 +26,12 @@ export interface SchoolInvitationData {
   plan?: string;
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: any, res: any, env?: any) {
   if (req.method !== 'GET') {
     return json(res, 405, { ok: false, error: 'Method not allowed. Gunakan metode GET.' });
   }
 
+  const cfEnv = env || req?.env || {};
   const query = req.query || {};
   const rawCode = String(query.code || query.inviteCode || query.kode || query.query || query.npsn || '').trim();
 
@@ -44,8 +45,8 @@ export default async function handler(req: any, res: any) {
   const strippedCode = rawCode.toUpperCase().replace(/^SCH-?/i, '').replace(/^KWC-?/i, '').trim();
   const cleanCode = strippedCode.replace(/[^A-Z0-9]/g, '');
 
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+  const url = cfEnv.SUPABASE_URL || cfEnv.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const serviceKey = cfEnv.SUPABASE_SERVICE_ROLE_KEY || cfEnv.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
 
   // 1. Cek dari Database Supabase jika kredensial tersedia
   if (url && serviceKey) {

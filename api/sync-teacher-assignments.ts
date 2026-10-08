@@ -122,15 +122,16 @@ export async function reconcileTeacherAssignments(
 
 const ALLOWED_ROLES = ['ADMIN', 'SUPER_ADMIN', 'KEPALA SEKOLAH', 'GURU MAPEL'];
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: any, res: any, env?: any) {
   if (req.method !== 'POST') {
     return json(res, 405, { error: 'Metode permintaan tidak diizinkan.' });
   }
 
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+  const cfEnv = env || req?.env || {};
+  const url = cfEnv.SUPABASE_URL || cfEnv.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const serviceKey = cfEnv.SUPABASE_SERVICE_ROLE_KEY || cfEnv.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
   if (!url || !serviceKey) {
-    return json(res, 500, { error: 'SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi.' });
+    return json(res, 500, { error: 'SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi di Cloudflare Worker atau Vercel.' });
   }
 
   const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();

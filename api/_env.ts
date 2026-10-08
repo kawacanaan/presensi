@@ -8,7 +8,7 @@ let workerEnvSnapshot: Record<string, any> = {};
 
 export function setWorkerEnv(env: Record<string, any> | undefined | null) {
   if (!env || typeof env !== 'object') return;
-  workerEnvSnapshot = { ...env };
+  workerEnvSnapshot = { ...workerEnvSnapshot, ...env };
 
   // 1. Inisialisasi globalThis.process.env jika belum tersedia
   if (typeof (globalThis as any).process === 'undefined') {
@@ -19,7 +19,7 @@ export function setWorkerEnv(env: Record<string, any> | undefined | null) {
 
   // 2. Salin seluruh binding dan secret dari Cloudflare Worker ke process.env
   for (const [key, val] of Object.entries(env)) {
-    if (typeof val === 'string') {
+    if (typeof val === 'string' && val !== '') {
       (globalThis as any).process.env[key] = val;
     }
   }
@@ -27,43 +27,56 @@ export function setWorkerEnv(env: Record<string, any> | undefined | null) {
   // 3. Normalisasi alias kunci penting (Supabase, Midtrans, AI)
   const p = (globalThis as any).process.env;
 
-  // Supabase URL
-  if (!p.SUPABASE_URL && p.VITE_SUPABASE_URL) {
-    p.SUPABASE_URL = p.VITE_SUPABASE_URL;
-  }
-  if (!p.VITE_SUPABASE_URL && p.SUPABASE_URL) {
-    p.VITE_SUPABASE_URL = p.SUPABASE_URL;
-  }
+  if (!p.SUPABASE_URL && p.VITE_SUPABASE_URL) p.SUPABASE_URL = p.VITE_SUPABASE_URL;
+  if (!p.VITE_SUPABASE_URL && p.SUPABASE_URL) p.VITE_SUPABASE_URL = p.SUPABASE_URL;
 
-  // Supabase Keys
-  if (!p.SUPABASE_SERVICE_ROLE_KEY && p.SUPABASE_SECRET_KEY) {
-    p.SUPABASE_SERVICE_ROLE_KEY = p.SUPABASE_SECRET_KEY;
-  }
-  if (!p.SUPABASE_SECRET_KEY && p.SUPABASE_SERVICE_ROLE_KEY) {
-    p.SUPABASE_SECRET_KEY = p.SUPABASE_SERVICE_ROLE_KEY;
-  }
-  if (!p.SUPABASE_ANON_KEY && p.VITE_SUPABASE_ANON_KEY) {
-    p.SUPABASE_ANON_KEY = p.VITE_SUPABASE_ANON_KEY;
-  }
+  if (!p.SUPABASE_SERVICE_ROLE_KEY && p.SUPABASE_SECRET_KEY) p.SUPABASE_SERVICE_ROLE_KEY = p.SUPABASE_SECRET_KEY;
+  if (!p.SUPABASE_SECRET_KEY && p.SUPABASE_SERVICE_ROLE_KEY) p.SUPABASE_SECRET_KEY = p.SUPABASE_SERVICE_ROLE_KEY;
+  if (!p.SUPABASE_ANON_KEY && p.VITE_SUPABASE_ANON_KEY) p.SUPABASE_ANON_KEY = p.VITE_SUPABASE_ANON_KEY;
+  if (!p.SUPABASE_ANON_KEY && p.VITE_SUPABASE_PUBLISHABLE_KEY) p.SUPABASE_ANON_KEY = p.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (!p.VITE_SUPABASE_PUBLISHABLE_KEY && p.SUPABASE_ANON_KEY) p.VITE_SUPABASE_PUBLISHABLE_KEY = p.SUPABASE_ANON_KEY;
 
-  // Midtrans Keys
-  if (!p.MIDTRANS_CLIENT_KEY && p.VITE_MIDTRANS_CLIENT_KEY) {
-    p.MIDTRANS_CLIENT_KEY = p.VITE_MIDTRANS_CLIENT_KEY;
-  }
-  if (!p.VITE_MIDTRANS_CLIENT_KEY && p.MIDTRANS_CLIENT_KEY) {
-    p.VITE_MIDTRANS_CLIENT_KEY = p.MIDTRANS_CLIENT_KEY;
-  }
+  if (!p.MIDTRANS_CLIENT_KEY && p.VITE_MIDTRANS_CLIENT_KEY) p.MIDTRANS_CLIENT_KEY = p.VITE_MIDTRANS_CLIENT_KEY;
+  if (!p.VITE_MIDTRANS_CLIENT_KEY && p.MIDTRANS_CLIENT_KEY) p.VITE_MIDTRANS_CLIENT_KEY = p.MIDTRANS_CLIENT_KEY;
 }
 
-export function getEnv(key: string, req?: any): string {
-  if (req?.env && req.env[key] !== undefined && req.env[key] !== null) {
+export function getEnv(key: string, env?: any, req?: any, fallback = ''): string {
+  // 1. Objek env langsung dari Cloudflare Worker
+  if (env && typeof env === 'object' && env[key] !== undefined && env[key] !== null && env[key] !== '') {
+    return String(env[key]);
+  }
+  // 2. Objek req.env (injected by adapter)
+  if (req?.env && typeof req.env === 'object' && req.env[key] !== undefined && req.env[key] !== null && req.env[key] !== '') {
     return String(req.env[key]);
   }
-  if (workerEnvSnapshot[key] !== undefined && workerEnvSnapshot[key] !== null) {
+  // 3. Snapshot module
+  if (workerEnvSnapshot[key] !== undefined && workerEnvSnapshot[key] !== null && workerEnvSnapshot[key] !== '') {
     return String(workerEnvSnapshot[key]);
   }
-  if (typeof process !== 'undefined' && process.env && process.env[key] !== undefined && process.env[key] !== null) {
+  // 4. process.env (Vercel / Node fallback)
+  if (typeof process !== 'undefined' && process.env && process.env[key] !== undefined && process.env[key] !== null && process.env[key] !== '') {
     return String(process.env[key]);
   }
-  return '';
+  return fallback;
+}
+
+export function getSupabaseConfig(env?: any, req?: any) {
+  const url =
+    getEnv('SUPABASE_URL', env, req) ||
+    getEnv('VITE_SUPABASE_URL', env, req);
+
+  const serviceKey =
+    getEnv('SUPABASE_SERVICE_ROLE_KEY', env, req) ||
+    getEnv('SUPABASE_SECRET_KEY', env, req) ||
+    getEnv('VITE_SUPABASE_SERVICE_ROLE_KEY', env, req) ||
+    getEnv('SERVICE_ROLE_KEY', env, req) ||
+    getEnv('SUPABASE_KEY', env, req);
+
+  const anonKey =
+    getEnv('VITE_SUPABASE_PUBLISHABLE_KEY', env, req) ||
+    getEnv('VITE_SUPABASE_ANON_KEY', env, req) ||
+    getEnv('SUPABASE_ANON_KEY', env, req) ||
+    getEnv('SUPABASE_PUBLISHABLE_KEY', env, req);
+
+  return { url, serviceKey, anonKey };
 }

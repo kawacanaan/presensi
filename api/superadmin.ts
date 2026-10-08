@@ -154,23 +154,42 @@ async function saveSchoolNote(admin: any, schoolId: string, note: string | null)
   }
 }
 
-export default async function handler(req:any,res:any){
-  if(req.method!=='POST') return json(res,405,{error:'Method not allowed'});
-  const url=process.env.SUPABASE_URL||process.env.VITE_SUPABASE_URL||'';
-  const key=process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SECRET_KEY||'';
-  if(!url||!key) return json(res,500,{error:'SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY wajib tersedia di Vercel.'});
-  const {action}=req.body||{};
+export default async function handler(req: any, res: any, env?: any) {
+  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  const cfEnv = env || req?.env || {};
+  const url = cfEnv.SUPABASE_URL || cfEnv.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const key = cfEnv.SUPABASE_SERVICE_ROLE_KEY || cfEnv.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+  const { action } = req.body || {};
 
   // Aksi Publik: Akses logo & nama platform publik tanpa perlu token auth
   if (action === 'get_public_brand' || action === 'get_public_platform_config') {
-    const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data: settings } = await admin.from('platform_settings').select('integrations').eq('id', 1).maybeSingle();
-    const pc = settings?.integrations?.platform_config || {};
-    return json(res, 200, {
-      ok: true,
-      app_name: pc.app_name || 'Kawacanaan Presensi',
-      app_logo_url: pc.app_logo_url || null,
-    });
+    if (!url || !key) {
+      return json(res, 200, {
+        ok: true,
+        app_name: 'Kawacanaan Presensi',
+        app_logo_url: null,
+      });
+    }
+    try {
+      const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { data: settings } = await admin.from('platform_settings').select('integrations').eq('id', 1).maybeSingle();
+      const pc = settings?.integrations?.platform_config || {};
+      return json(res, 200, {
+        ok: true,
+        app_name: pc.app_name || 'Kawacanaan Presensi',
+        app_logo_url: pc.app_logo_url || null,
+      });
+    } catch (_) {
+      return json(res, 200, {
+        ok: true,
+        app_name: 'Kawacanaan Presensi',
+        app_logo_url: null,
+      });
+    }
+  }
+
+  if (!url || !key) {
+    return json(res, 500, { error: 'SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY wajib tersedia pada environment Cloudflare Worker atau Vercel.' });
   }
 
   const token=(req.headers.authorization||'').replace(/^Bearer\s+/i,'').trim();
@@ -2149,8 +2168,8 @@ export default async function handler(req:any,res:any){
         ...(integrations.platform_config || {}),
       };
 
-      const cfAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-      const cfApiToken = process.env.CLOUDFLARE_API_TOKEN;
+      const cfAccountId = cfEnv.CLOUDFLARE_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID;
+      const cfApiToken = cfEnv.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
       const defaultKokaConfig = {
         enabled_landing: true,
         enabled_dashboard: true,
@@ -2423,8 +2442,8 @@ export default async function handler(req:any,res:any){
     }
 
     if(action==='test_koka_ai'){
-      const cfAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-      const cfApiToken = process.env.CLOUDFLARE_API_TOKEN;
+      const cfAccountId = cfEnv.CLOUDFLARE_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID;
+      const cfApiToken = cfEnv.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
       if (!cfAccountId || !cfApiToken) {
         return json(res, 400, {
           ok: false,
