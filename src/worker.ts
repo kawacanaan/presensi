@@ -1,26 +1,326 @@
-interface Env {
-  ASSETS: Fetcher;
+/**
+ * Cloudflare Worker Entry Point — KawaCanaan Presensi
+ *
+ * Menggabungkan backend API (/api/*) dan frontend SPA static assets (./dist)
+ * dalam satu Cloudflare Worker runtime tanpa mengubah logika bisnis yang sudah ada.
+ */
+
+import { setWorkerEnv } from '../api/_env';
+import handleAdminUsers from '../api/admin-users';
+import handleAi from '../api/ai';
+import handleAttendance from '../api/attendance';
+import handleMidtrans from '../api/midtrans';
+import handleOnboarding from '../api/onboarding';
+import handlePushNotification from '../api/push-notification';
+import handleRegisterSchool from '../api/register-school';
+import handleResolveLogin from '../api/resolve-login';
+import handleSchoolLookup from '../api/school-lookup';
+import handleSetupSuperadmin from '../api/setup-superadmin';
+import handleSuperadmin from '../api/superadmin';
+import handleSyncTeacherAssignments from '../api/sync-teacher-assignments';
+import handleSyncWaliKelas from '../api/sync-wali-kelas';
+
+interface WorkerFetcher {
+  fetch(request: Request): Promise<Response>;
+}
+
+export interface Env {
+  ASSETS: WorkerFetcher;
+  SUPABASE_URL?: string;
+  VITE_SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SUPABASE_SECRET_KEY?: string;
+  SUPABASE_ANON_KEY?: string;
+  VITE_SUPABASE_ANON_KEY?: string;
+  MIDTRANS_CLIENT_KEY?: string;
+  VITE_MIDTRANS_CLIENT_KEY?: string;
+  MIDTRANS_SERVER_KEY?: string;
+  MIDTRANS_MERCHANT_ID?: string;
+  MIDTRANS_IS_PRODUCTION?: string;
+  VITE_MIDTRANS_IS_PRODUCTION?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_API_TOKEN?: string;
+  GEMINI_API_KEY?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
+  [key: string]: any;
+}
+
+type ApiHandler = (req: any, res: any, env?: Env) => Promise<any> | any;
+
+const ROUTES: Record<string, ApiHandler> = {
+  'admin-users': handleAdminUsers,
+  'ai': handleAi,
+  'attendance': handleAttendance,
+  'midtrans': handleMidtrans,
+  'onboarding': handleOnboarding,
+  'push-notification': handlePushNotification,
+  'register-school': handleRegisterSchool,
+  'resolve-login': handleResolveLogin,
+  'school-lookup': handleSchoolLookup,
+  'setup-superadmin': handleSetupSuperadmin,
+  'superadmin': handleSuperadmin,
+  'sync-teacher-assignments': handleSyncTeacherAssignments,
+  'sync-wali-kelas': handleSyncWaliKelas,
+
+  // Aliases & Rewrites
+  'teacher-subject': handleSyncTeacherAssignments,
+  'payments': handleMidtrans,
+  'midtrans-webhook': handleMidtrans,
+  'midtrans/webhook': handleMidtrans,
+  'billing/webhook': handleMidtrans,
+};
+
+function resolveRoute(pathname: string): ApiHandler | null {
+  const clean = pathname.replace(/^\/api\//, '').replace(/\/+$/, '');
+  if (!clean) return null;
+
+  if (ROUTES[clean]) {
+    return ROUTES[clean];
+  }
+
+  // Cek nested subpath (misal: /api/midtrans/webhook)
+  const segments = clean.split('/');
+  if (segments.length > 1 && ROUTES[clean]) {
+    return ROUTES[clean];
+  }
+  if (ROUTES[segments[0]]) {
+    return ROUTES[segments[0]];
+  }
+
+  return null;
+}
+
+/**
+ * Adapter untuk mengubah Request/Response Cloudflare Worker
+ * menjadi format Node/Vercel (req, res) yang diharapkan oleh /api/*.ts.
+ */
+async function handleApiRequest(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+
+  // 1. CORS Preflight (OPTIONS)
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Superadmin-Secret, X-Requested-With, *',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+
+  // 2. Cari route handler yang cocok
+  const handler = resolveRoute(url.pathname);
+  if (!handler) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: `Endpoint API tidak ditemukan: ${url.pathname}`,
+      }),
+      {
+        status: 404,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    );
+  }
+
+  // 3. Sinkronisasikan Environment Variables Cloudflare Worker ke process.env
+  setWorkerEnv(env);
+
+  // 4. Parse query parameters
+  const query: Record<string, string> = {};
+  url.searchParams.forEach((val, key) => {
+    query[key] = val;
+  });
+
+  // 5. Parse headers
+  const headers: Record<string, string> = {};
+  request.headers.forEach((val, key) => {
+    headers[key.toLowerCase()] = val;
+  });
+
+  // 6. Parse request body
+  let body: any = {};
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+    const contentType = request.headers.get('content-type') || '';
+    try {
+      if (contentType.includes('application/json')) {
+        body = await request.json();
+      } else if (contentType.includes('application/x-www-form-urlencoded')) {
+        const text = await request.text();
+        const search = new URLSearchParams(text);
+        const formObj: Record<string, string> = {};
+        search.forEach((v, k) => {
+          formObj[k] = v;
+        });
+        body = formObj;
+      } else {
+        const rawText = await request.text();
+        if (rawText) {
+          try {
+            body = JSON.parse(rawText);
+          } catch {
+            body = rawText;
+          }
+        }
+      }
+    } catch {
+      body = {};
+    }
+  }
+
+  // 7. Siapkan objek `req`
+  const req: any = {
+    method: request.method,
+    url: request.url,
+    headers,
+    query,
+    body,
+    env,
+    rawRequest: request,
+  };
+
+  // 8. Siapkan objek `res` dan Promise resolusi
+  let statusCode = 200;
+  const resHeaders = new Headers();
+  let resBody: BodyInit | null = null;
+  let isEnded = false;
+
+  let resolveResponse: (response: Response) => void;
+  const responsePromise = new Promise<Response>((resolve) => {
+    resolveResponse = resolve;
+  });
+
+  const finishResponse = (payload?: any) => {
+    if (isEnded) return;
+    isEnded = true;
+
+    if (payload !== undefined && payload !== null) {
+      if (typeof payload === 'string' || payload instanceof Uint8Array || payload instanceof ArrayBuffer) {
+        resBody = payload;
+      } else {
+        if (!resHeaders.has('content-type')) {
+          resHeaders.set('content-type', 'application/json; charset=utf-8');
+        }
+        resBody = JSON.stringify(payload);
+      }
+    }
+
+    // Default CORS headers
+    if (!resHeaders.has('access-control-allow-origin')) {
+      resHeaders.set('access-control-allow-origin', '*');
+    }
+
+    resolveResponse(
+      new Response(resBody, {
+        status: statusCode,
+        headers: resHeaders,
+      })
+    );
+  };
+
+  const res: any = {
+    get statusCode() {
+      return statusCode;
+    },
+    set statusCode(code: number) {
+      statusCode = code;
+    },
+    status(code: number) {
+      statusCode = code;
+      return res;
+    },
+    setHeader(name: string, value: string) {
+      resHeaders.set(name, value);
+      return res;
+    },
+    getHeader(name: string) {
+      return resHeaders.get(name);
+    },
+    removeHeader(name: string) {
+      resHeaders.delete(name);
+      return res;
+    },
+    json(data: any) {
+      if (!resHeaders.has('content-type')) {
+        resHeaders.set('content-type', 'application/json; charset=utf-8');
+      }
+      finishResponse(JSON.stringify(data));
+      return res;
+    },
+    send(data: any) {
+      finishResponse(data);
+      return res;
+    },
+    end(data?: any) {
+      finishResponse(data);
+      return res;
+    },
+  };
+
+  // 9. Jalankan handler
+  try {
+    const maybePromise = handler(req, res, env);
+    if (maybePromise && typeof maybePromise.then === 'function') {
+      await maybePromise;
+    }
+    if (!isEnded) {
+      finishResponse();
+    }
+    return await responsePromise;
+  } catch (err: any) {
+    console.error(`[Worker API Error ${url.pathname}]`, err);
+    if (!isEnded) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: err?.message || 'Internal Server Error pada Cloudflare Worker API',
+        }),
+        {
+          status: 500,
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'access-control-allow-origin': '*',
+          },
+        }
+      );
+    }
+    return await responsePromise;
+  }
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    // Rute API
     if (url.pathname.startsWith('/api/')) {
-      return new Response(
-        JSON.stringify({
-          error: 'API belum dikonfigurasi',
-          path: url.pathname,
-        }),
-        {
-          status: 501,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      return handleApiRequest(request, env);
     }
 
-    return env.ASSETS.fetch(request);
+    // Static Assets Frontend (./dist)
+    if (env.ASSETS) {
+      let assetResponse = await env.ASSETS.fetch(request);
+
+      // SPA Fallback: Jika aset tidak ditemukan (404) dan bukan file berekstensi,
+      // sajikan /index.html agar routing React Router / client-side berfungsi normal
+      if (assetResponse.status === 404 && request.method === 'GET') {
+        const isStaticAsset = /\.[a-zA-Z0-9]+$/.test(url.pathname);
+        if (!isStaticAsset) {
+          const indexRequest = new Request(new URL('/index.html', request.url).toString(), request);
+          assetResponse = await env.ASSETS.fetch(indexRequest);
+        }
+      }
+
+      return assetResponse;
+    }
+
+    return new Response('Binding static assets (env.ASSETS) tidak ditemukan.', { status: 500 });
   },
 };

@@ -4,23 +4,30 @@ import webpush from 'web-push';
 const json = (res: any, status: number, body: unknown) =>
   res.status(status).setHeader('Content-Type', 'application/json').end(JSON.stringify(body));
 
-const VAPID_PUBLIC_KEY =
-  process.env.VAPID_PUBLIC_KEY ||
-  'BNSuY-J6kJLXJMSV0FrVIEKWHRurVtBRDeXBsdEkgscj9xwoTi6Ffe_-ZzKwnkSsVSvhRJruvO8LVhXIAtu66_0';
-
-const VAPID_PRIVATE_KEY =
-  process.env.VAPID_PRIVATE_KEY ||
-  'fr-UyVgkzNyNR5xLmwmvWA2OrkOyEj4AcUbHR2J4QNc';
-
-const VAPID_SUBJECT =
-  process.env.VAPID_SUBJECT ||
-  'mailto:notifikasi@kawacanaan.id';
-
-try {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-} catch (err) {
-  console.warn('[Push] Error initializing VAPID details:', err);
+export function getVapidPublicKey() {
+  return (
+    process.env.VAPID_PUBLIC_KEY ||
+    'BNSuY-J6kJLXJMSV0FrVIEKWHRurVtBRDeXBsdEkgscj9xwoTi6Ffe_-ZzKwnkSsVSvhRJruvO8LVhXIAtu66_0'
+  );
 }
+
+export function ensureVapidConfigured() {
+  const pub = getVapidPublicKey();
+  const priv =
+    process.env.VAPID_PRIVATE_KEY ||
+    'fr-UyVgkzNyNR5xLmwmvWA2OrkOyEj4AcUbHR2J4QNc';
+  const sub =
+    process.env.VAPID_SUBJECT ||
+    'mailto:notifikasi@kawacanaan.id';
+  try {
+    webpush.setVapidDetails(sub, pub, priv);
+  } catch (err) {
+    console.warn('[Push] Error initializing VAPID details:', err);
+  }
+}
+
+// Initial setup
+ensureVapidConfigured();
 
 // In-memory fallback cache to ensure multi-device subscriptions work seamlessly
 // even if the Supabase table migration hasn't been applied yet.
@@ -40,9 +47,10 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     const action = req.query?.action || 'vapid_key';
     if (action === 'vapid_key') {
+      ensureVapidConfigured();
       return json(res, 200, {
         ok: true,
-        publicKey: VAPID_PUBLIC_KEY,
+        publicKey: getVapidPublicKey(),
       });
     }
 
