@@ -70,13 +70,19 @@ export async function fetchMidtransClientConfig(forceRefresh = false): Promise<M
       return { ok: false, error: data?.error || 'Gagal memuat konfigurasi pembayaran Midtrans' };
     } catch (err: any) {
       console.warn('[Midtrans Client] Gagal menghubungi endpoint konfigurasi:', err);
-      // Fallback menggunakan variabel lingkungan frontend jika tersedia
-      const viteKey = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_MIDTRANS_CLIENT_KEY : '';
-      const viteProd =
-        typeof import.meta !== 'undefined' &&
-        (import.meta.env?.VITE_MIDTRANS_IS_PRODUCTION === 'true' ||
-          import.meta.env?.VITE_MIDTRANS_IS_PRODUCTION === '1' ||
-          import.meta.env?.VITE_MIDTRANS_IS_PRODUCTION === 'production');
+      // Fallback menggunakan variabel lingkungan runtime frontend jika tersedia
+      const win = typeof window !== 'undefined' ? (window as any) : {};
+      const cf = win.__CLOUDFLARE_ENV__ || {};
+      const viteKey =
+        cf.MIDTRANS_CLIENT_KEY ||
+        cf.VITE_MIDTRANS_CLIENT_KEY ||
+        (typeof import.meta !== 'undefined' ? import.meta.env?.VITE_MIDTRANS_CLIENT_KEY : '') ||
+        '';
+      const rawProd =
+        cf.MIDTRANS_IS_PRODUCTION ||
+        cf.VITE_MIDTRANS_IS_PRODUCTION ||
+        (typeof import.meta !== 'undefined' ? import.meta.env?.VITE_MIDTRANS_IS_PRODUCTION : '');
+      const viteProd = rawProd === 'true' || rawProd === '1' || rawProd === 'production';
 
       const fallbackResult: MidtransClientConfig = {
         ok: Boolean(viteKey),

@@ -259,7 +259,8 @@ export default async function handler(req: any, res: any, env?: any) {
   }
 
   // 3. Fallback header secret setup superadmin
-  if (!profile && superSecret && process.env.SUPERADMIN_SETUP_SECRET && superSecret === process.env.SUPERADMIN_SETUP_SECRET) {
+  const expectedSecret = cfEnv.SUPERADMIN_SETUP_SECRET || process.env.SUPERADMIN_SETUP_SECRET;
+  if (!profile && superSecret && expectedSecret && superSecret === expectedSecret) {
     const { data: saAny } = await admin.from('profiles').select('*').eq('role', 'SUPER_ADMIN').limit(1).maybeSingle();
     if (saAny) {
       profile = saAny;

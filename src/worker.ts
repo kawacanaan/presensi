@@ -129,13 +129,15 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
 
   // 1. CORS Preflight (OPTIONS)
   if (request.method === 'OPTIONS') {
+    const origin = request.headers.get('origin') || '*';
     return new Response(null, {
       status: 204,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': origin,
         'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Superadmin-Secret, X-Superadmin-Key, X-Requested-With, *',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Superadmin-Secret, X-Superadmin-Key, X-Requested-With',
         'Access-Control-Max-Age': '86400',
+        'Vary': 'Origin',
       },
     });
   }
@@ -268,9 +270,15 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
       resBody = null;
     }
 
-    // Default CORS headers
+    // Default CORS headers: prioritaskan origin spesifik dari request
+    const reqOrigin = request.headers.get('origin');
     if (!resHeaders.has('access-control-allow-origin')) {
-      resHeaders.set('access-control-allow-origin', '*');
+      if (reqOrigin) {
+        resHeaders.set('access-control-allow-origin', reqOrigin);
+        resHeaders.set('vary', 'Origin');
+      } else {
+        resHeaders.set('access-control-allow-origin', '*');
+      }
     }
 
     resolveResponse(
@@ -394,6 +402,11 @@ export default {
               VITE_SUPABASE_URL: supabaseUrl,
               VITE_SUPABASE_PUBLISHABLE_KEY: supabaseAnonKey,
               VITE_SUPABASE_ANON_KEY: supabaseAnonKey,
+              VITE_APP_URL: env.VITE_APP_URL || '',
+              MIDTRANS_CLIENT_KEY: env.MIDTRANS_CLIENT_KEY || env.VITE_MIDTRANS_CLIENT_KEY || '',
+              VITE_MIDTRANS_CLIENT_KEY: env.VITE_MIDTRANS_CLIENT_KEY || env.MIDTRANS_CLIENT_KEY || '',
+              MIDTRANS_IS_PRODUCTION: env.MIDTRANS_IS_PRODUCTION || env.VITE_MIDTRANS_IS_PRODUCTION || 'false',
+              VITE_MIDTRANS_IS_PRODUCTION: env.VITE_MIDTRANS_IS_PRODUCTION || env.MIDTRANS_IS_PRODUCTION || 'false',
             })};</script>`;
 
             const modifiedHtml = html.includes('</head>')
