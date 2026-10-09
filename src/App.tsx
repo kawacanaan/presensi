@@ -28,6 +28,7 @@ import { PublicDailyReportViewer } from './components/PublicDailyReportViewer';
 import { PublicSmartInvoiceViewer } from './components/PublicSmartInvoiceViewer';
 import { parseCanonicalReportParams } from './utils/smartReport';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { triggerNativePWAInstallPrompt } from './utils/usePWAInstall';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 import type { ActiveView, UserRole } from './types';
 
@@ -255,6 +256,19 @@ const MainAppContent: React.FC = () => {
       } catch (_) {}
     }
   }, [currentUser, activeView, setActiveView]);
+
+  // Kotak dialog resmi instalasi bawaan browser/perangkat (Android & Windows)
+  // Berlaku untuk semua role kecuali SUPER_ADMIN. Otomatis dilewati jika aplikasi sudah terpasang di perangkat.
+  React.useEffect(() => {
+    if (!currentUser || currentUser.role === 'SUPER_ADMIN') return;
+    const cleanup = triggerNativePWAInstallPrompt({
+      role: currentUser.role,
+      userId: currentUser.id,
+    });
+    return () => {
+      cleanup();
+    };
+  }, [currentUser?.id, currentUser?.role]);
 
   const handleEnterSystem = () => {
     setShowLanding(false);
