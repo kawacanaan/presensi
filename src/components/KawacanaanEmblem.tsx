@@ -40,12 +40,10 @@ export const KawacanaanEmblem: React.FC<KawacanaanEmblemProps> = ({
         alt={alt}
         className="w-full h-full object-contain hover:scale-105 transition-transform duration-300 drop-shadow-sm"
         onError={(e) => {
-          // Fallback jika logo custom gagal dimuat
+          // Fallback jika logo custom gagal dimuat, selalu gunakan logo terbaru default (/lk.png)
           const target = e.currentTarget;
           if (target.src !== `${window.location.origin}/lk.png` && !target.src.endsWith('/lk.png')) {
             target.src = '/lk.png';
-          } else if (target.src !== `${window.location.origin}/kawacanaan-logo.png` && !target.src.endsWith('/kawacanaan-logo.png')) {
-            target.src = '/kawacanaan-logo.png';
           }
         }}
         referrerPolicy="no-referrer"

@@ -1,12 +1,14 @@
 // Service Worker Kawacanaan Presensi - PWA & Web Push Notification
-const CACHE_NAME = 'kawacanaan-pwa-v1';
+const CACHE_NAME = 'kawacanaan-pwa-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/lk.png',
   '/favicon.png',
   '/pwa-192.png',
   '/pwa-512.png',
+  '/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {

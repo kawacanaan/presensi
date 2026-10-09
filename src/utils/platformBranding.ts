@@ -36,8 +36,8 @@ let currentName: string = (() => {
  */
 export function updateFavicon(logoUrl?: string) {
   if (typeof document === 'undefined') return;
-  // Jika logo adalah default atau kosong, gunakan favicon.png yang sudah teroptimasi (12 KB)
-  const isDefault = !logoUrl || !logoUrl.trim() || logoUrl === DEFAULT_PLATFORM_LOGO || logoUrl === '/lk.png' || logoUrl === '/kawacanaan-logo.png';
+  // Jika logo adalah default atau kosong, gunakan favicon.png / logo default
+  const isDefault = !logoUrl || !logoUrl.trim() || logoUrl === DEFAULT_PLATFORM_LOGO || logoUrl === '/lk.png';
   const targetUrl = isDefault ? '/favicon.png' : logoUrl.trim();
 
   try {
@@ -81,7 +81,7 @@ export function getPlatformName(): string {
  * Check if the current logo is the default one
  */
 export function isUsingDefaultLogo(): boolean {
-  return !currentLogo || currentLogo === DEFAULT_PLATFORM_LOGO || currentLogo === '/kawacanaan-logo.png';
+  return !currentLogo || currentLogo === DEFAULT_PLATFORM_LOGO || currentLogo === '/lk.png';
 }
 
 /**
@@ -208,7 +208,7 @@ export function usePlatformBrand() {
   return {
     logoUrl,
     appName,
-    isDefaultLogo: !logoUrl || logoUrl === DEFAULT_PLATFORM_LOGO || logoUrl === '/kawacanaan-logo.png',
+    isDefaultLogo: !logoUrl || logoUrl === DEFAULT_PLATFORM_LOGO || logoUrl === '/lk.png',
     setBrand: setPlatformBrand,
     refreshFromServer: syncPlatformBrandFromServer,
   };
