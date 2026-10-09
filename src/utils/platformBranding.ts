@@ -64,6 +64,64 @@ export function updateFavicon(logoUrl?: string) {
 }
 
 /**
+ * Update PWA Web Manifest secara dinamis agar ikon aplikasi yang diinstal
+ * di Android maupun Windows selalu mengikuti logo resmi yang sedang aktif.
+ */
+export function updateWebManifest(logoUrl?: string, appName?: string) {
+  if (typeof document === 'undefined') return;
+  const activeLogo = logoUrl && logoUrl.trim() ? logoUrl.trim() : DEFAULT_PLATFORM_LOGO;
+  const activeName = appName && appName.trim() ? appName.trim() : DEFAULT_PLATFORM_NAME;
+
+  try {
+    const manifestObj = {
+      id: '/?v=2',
+      name: activeName,
+      short_name: activeName.replace(/\s+Presensi$/i, ''),
+      description: 'Sistem Presensi Digital Terpadu Sekolah — Portal Siswa & Wali Murid Real-Time',
+      start_url: '/',
+      scope: '/',
+      display: 'standalone',
+      background_color: '#F8FAFC',
+      theme_color: '#2563EB',
+      orientation: 'portrait',
+      icons: [
+        {
+          src: activeLogo,
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'any',
+        },
+        {
+          src: activeLogo,
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any',
+        },
+        {
+          src: activeLogo,
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
+      ],
+    };
+
+    const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' });
+    const manifestUrl = URL.createObjectURL(manifestBlob);
+
+    let manifestLink = document.querySelector("link[rel='manifest']") as HTMLLinkElement | null;
+    if (!manifestLink) {
+      manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      document.head.appendChild(manifestLink);
+    }
+    manifestLink.href = manifestUrl;
+  } catch (err) {
+    console.warn('[Branding] Gagal memperbarui Web Manifest:', err);
+  }
+}
+
+/**
  * Get active platform logo URL
  */
 export function getPlatformLogo(): string {
@@ -113,8 +171,9 @@ export function setPlatformBrand(updates: { logoUrl?: string | null; appName?: s
     }
   } catch (_) {}
 
-  // Update favicon
+  // Update favicon and dynamic web manifest for PWA installation
   updateFavicon(newLogo);
+  updateWebManifest(newLogo, newName);
 
   // Broadcast event to all listening components
   if (typeof window !== 'undefined') {
@@ -164,6 +223,7 @@ export async function syncPlatformBrandFromServer(): Promise<void> {
 // Initial sync on app load
 if (typeof window !== 'undefined') {
   updateFavicon(currentLogo);
+  updateWebManifest(currentLogo, currentName);
   // Defer server sync slightly to avoid blocking initial render
   setTimeout(() => {
     void syncPlatformBrandFromServer();

@@ -1,5 +1,5 @@
 // Service Worker Kawacanaan Presensi - PWA & Web Push Notification
-const CACHE_NAME = 'kawacanaan-pwa-v2';
+const CACHE_NAME = 'kawacanaan-pwa-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
