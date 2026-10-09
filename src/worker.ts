@@ -171,6 +171,9 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
   const supabaseUrl = resolveWorkerSupabaseUrl(env);
   const supabaseAnonKey = resolveWorkerSupabaseAnonKey(env);
   const supabaseServiceKey = resolveWorkerSupabaseServiceRoleKey(env);
+  const vapidPublic = (env.VAPID_PUBLIC_KEY || (globalThis as any).process?.env?.VAPID_PUBLIC_KEY || '').trim();
+  const vapidPrivate = (env.VAPID_PRIVATE_KEY || (globalThis as any).process?.env?.VAPID_PRIVATE_KEY || '').trim();
+  const vapidSubject = (env.VAPID_SUBJECT || (globalThis as any).process?.env?.VAPID_SUBJECT || '').trim();
 
   const normalizedEnv: Env = {
     ...env,
@@ -181,6 +184,9 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     VITE_SUPABASE_PUBLISHABLE_KEY: supabaseAnonKey || env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
     SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey || env.SUPABASE_SERVICE_ROLE_KEY || '',
     SUPABASE_SECRET_KEY: supabaseServiceKey || env.SUPABASE_SECRET_KEY || '',
+    VAPID_PUBLIC_KEY: vapidPublic || env.VAPID_PUBLIC_KEY || '',
+    VAPID_PRIVATE_KEY: vapidPrivate || env.VAPID_PRIVATE_KEY || '',
+    VAPID_SUBJECT: vapidSubject || env.VAPID_SUBJECT || 'mailto:notifikasi@kawacanaan.id',
   };
 
   // 2. Endpoint konfigurasi publik runtime (/api/config)

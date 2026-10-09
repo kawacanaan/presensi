@@ -397,7 +397,7 @@ export const Header: React.FC = () => {
                 </div>
 
                 {/* PWA Install Button */}
-                <PWAInstallButton variant="compact" className="hidden sm:inline-flex" />
+                <PWAInstallButton variant="compact" className="inline-flex" />
 
                 {/* Notification Bell */}
                 <div className="relative" ref={notifRef}>

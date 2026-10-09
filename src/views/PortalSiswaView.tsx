@@ -214,6 +214,13 @@ export const PortalSiswaView: React.FC = () => {
         if (byName) return byName;
       }
 
+      // Jika belum cocok, cari student pada sekolah yang sama
+      if (students.length > 0) {
+        const bySchool = students.find((s) => s.schoolId === currentUser.schoolId);
+        if (bySchool) return bySchool;
+        return students[0];
+      }
+
       const userClassId = (currentUser.classIds && currentUser.classIds[0]) || null;
       const userClassName =
         (currentUser.classNames && currentUser.classNames[0]) ||
@@ -1091,6 +1098,7 @@ export const PortalSiswaView: React.FC = () => {
                       <Bell size={11} className={devicePushActive ? 'fill-blue-600' : ''} />
                       <span>{devicePushActive ? 'Notifikasi Aktif' : 'Aktifkan Notifikasi'}</span>
                     </button>
+                    <PWAInstallButton variant="compact" className="text-[10px] py-0.5 px-2 rounded-full" />
                   </div>
                 </div>
 
@@ -1118,6 +1126,9 @@ export const PortalSiswaView: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Banner PWA: Pasang Aplikasi ke Layar Utama (Android, Windows PC, iOS) */}
+              <PWAInstallButton variant="banner" className="mb-4" />
 
               {/* Hero Card: Absensi Hari Ini (Vibrant Blue Card with School Illustration) */}
               <div className="rounded-3xl bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 text-white p-4 sm:p-5 relative overflow-hidden shadow-lg shadow-blue-500/25">

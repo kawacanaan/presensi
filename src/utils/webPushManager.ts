@@ -168,13 +168,16 @@ export async function subscribeParentDevice({
 
   let subscription: PushSubscription | null = null;
   try {
-    subscription = await reg.pushManager.getSubscription();
-    if (!subscription) {
-      subscription = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedKey,
-      });
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) {
+      try {
+        await existing.unsubscribe();
+      } catch (_) {}
     }
+    subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: convertedKey,
+    });
   } catch (subErr: any) {
     console.error('[Push] Push manager subscribe failed:', subErr);
     return {

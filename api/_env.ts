@@ -44,6 +44,17 @@ export function setWorkerEnv(env: Record<string, any> | undefined | null) {
   if (!p.VITE_MIDTRANS_CLIENT_KEY && p.MIDTRANS_CLIENT_KEY) p.VITE_MIDTRANS_CLIENT_KEY = p.MIDTRANS_CLIENT_KEY;
 
   if (!p.GEMINI_API_KEY && p.GOOGLE_API_KEY) p.GEMINI_API_KEY = p.GOOGLE_API_KEY;
+
+  // 4. Normalisasi VAPID Web Push Keys
+  if (!p.VAPID_PUBLIC_KEY && (env?.VAPID_PUBLIC_KEY || env?.NEXT_PUBLIC_VAPID_PUBLIC_KEY)) {
+    p.VAPID_PUBLIC_KEY = env?.VAPID_PUBLIC_KEY || env?.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  }
+  if (!p.VAPID_PRIVATE_KEY && env?.VAPID_PRIVATE_KEY) {
+    p.VAPID_PRIVATE_KEY = env.VAPID_PRIVATE_KEY;
+  }
+  if (!p.VAPID_SUBJECT && env?.VAPID_SUBJECT) {
+    p.VAPID_SUBJECT = env.VAPID_SUBJECT;
+  }
 }
 
 export function getEnv(key: string, env?: any, req?: any, fallback = ''): string {

@@ -205,6 +205,31 @@ export default async function handler(req: any, res: any, env?: any) {
 
             if (!upsertErr) {
               saveSuccess = true;
+              // Pemicu otomatis push notification ke orang tua jika tanggal presensi adalah hari ini
+              const todayISO = new Date().toISOString().slice(0, 10);
+              if (date === todayISO) {
+                (async () => {
+                  for (const r of normalizedPayload) {
+                    if (r.student_id && r.status && r.status !== '-') {
+                      const isCheckOut = Boolean(r.check_out_time && r.check_out_time !== '-');
+                      const eventType = isCheckOut ? 'pulang' : 'masuk';
+                      const timeStr = isCheckOut ? r.check_out_time : (r.check_in_time || '07:00');
+                      try {
+                        await sendAttendancePushToStudent(
+                          {
+                            studentId: String(r.student_id),
+                            eventType,
+                            timeStr,
+                            status: r.status,
+                            notes: r.notes || undefined,
+                          },
+                          cfEnv
+                        );
+                      } catch (_) {}
+                    }
+                  }
+                })().catch(() => {});
+              }
               return json(res, 200, { ok: true, count: upserted?.length || normalizedPayload.length });
             } else {
               lastInsertError = upsertErr;
@@ -224,6 +249,32 @@ export default async function handler(req: any, res: any, env?: any) {
               return json(res, 500, {
                 error: `Gagal menyimpan data absensi: ${insertError.message || lastInsertError?.message}`,
               });
+            }
+
+            // Pemicu otomatis push notification ke orang tua jika tanggal presensi adalah hari ini
+            const todayISO = new Date().toISOString().slice(0, 10);
+            if (date === todayISO) {
+              (async () => {
+                for (const r of normalizedPayload) {
+                  if (r.student_id && r.status && r.status !== '-') {
+                    const isCheckOut = Boolean(r.check_out_time && r.check_out_time !== '-');
+                    const eventType = isCheckOut ? 'pulang' : 'masuk';
+                    const timeStr = isCheckOut ? r.check_out_time : (r.check_in_time || '07:00');
+                    try {
+                      await sendAttendancePushToStudent(
+                        {
+                          studentId: String(r.student_id),
+                          eventType,
+                          timeStr,
+                          status: r.status,
+                          notes: r.notes || undefined,
+                        },
+                        cfEnv
+                      );
+                    } catch (_) {}
+                  }
+                }
+              })().catch(() => {});
             }
 
             return json(res, 200, { ok: true, count: inserted?.length || normalizedPayload.length });
@@ -400,14 +451,17 @@ export default async function handler(req: any, res: any, env?: any) {
           : (payload.check_in_time && payload.check_in_time !== '-' ? payload.check_in_time : record.check_in_time);
         const studentName = studentRow?.nama || profile.name || 'Ananda';
 
-        void sendAttendancePushToStudent({
-          studentId: String(payload.student_id),
-          studentName,
-          eventType,
-          timeStr,
-          status: record.status,
-          notes: record.notes,
-        }).catch((pushErr) => {
+        void sendAttendancePushToStudent(
+          {
+            studentId: String(payload.student_id),
+            studentName,
+            eventType,
+            timeStr,
+            status: record.status,
+            notes: record.notes,
+          },
+          cfEnv
+        ).catch((pushErr) => {
           console.warn('[Push] Background dispatch failed:', pushErr);
         });
       } catch (err) {

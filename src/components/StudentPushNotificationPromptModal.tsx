@@ -19,6 +19,7 @@ import {
   PushDeviceStatus,
   detectDeviceName,
 } from '../utils/webPushManager';
+import { PWAInstallButton } from './PWAInstallButton';
 import type { Student } from '../types';
 
 interface StudentPushNotificationPromptModalProps {
@@ -285,6 +286,9 @@ export const StudentPushNotificationPromptModal: React.FC<StudentPushNotificatio
               </button>
             </div>
           )}
+
+          {/* Pasang Aplikasi PWA */}
+          <PWAInstallButton variant="card" />
 
           {/* Keunggulan Fitur */}
           <div className="p-3 rounded-2xl bg-blue-50/60 border border-blue-100 flex items-start gap-2.5 text-[11px] text-blue-900">

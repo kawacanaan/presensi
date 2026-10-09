@@ -7800,6 +7800,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             " berhasil disimpan!",
           "success",
         );
+
+        // Pemicu otomatis push notifikasi ke HP Orang Tua jika presensi disimpan untuk hari ini
+        const todayDateStr = formatServerDateString(getServerNow());
+        if (date === todayDateStr) {
+          records.forEach((r) => {
+            if (r.studentId && r.status && r.status !== "-") {
+              const isOut = Boolean(r.checkOutTime && r.checkOutTime !== "-");
+              const evType = isOut ? "pulang" : "masuk";
+              const tStr = isOut ? r.checkOutTime : (r.checkInTime || "07:00");
+              void triggerAttendancePushNotification({
+                studentId: r.studentId,
+                studentName: r.studentName,
+                eventType: evType,
+                timeStr: tStr,
+                status: r.status,
+                notes: r.notes || undefined,
+              });
+            }
+          });
+        }
       }
       return { success: true };
     } catch (e: any) {

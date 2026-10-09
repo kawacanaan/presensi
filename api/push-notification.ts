@@ -45,11 +45,12 @@ const fallbackSubscriptions = new Map<string, Array<{
 
 export default async function handler(req: any, res: any, env?: any) {
   const cfEnv = env || req?.env || {};
+  ensureVapidConfigured(cfEnv);
+
   // GET: Public key or status check
   if (req.method === 'GET') {
     const action = req.query?.action || 'vapid_key';
     if (action === 'vapid_key') {
-      ensureVapidConfigured(cfEnv);
       return json(res, 200, {
         ok: true,
         publicKey: getVapidPublicKey(cfEnv),
@@ -63,7 +64,7 @@ export default async function handler(req: any, res: any, env?: any) {
       }
 
       // Check DB and fallback
-      const devices = await getSubscriptionsForStudent(studentId);
+      const devices = await getSubscriptionsForStudent(studentId, cfEnv);
       return json(res, 200, {
         ok: true,
         subscribedCount: devices.length,
@@ -99,7 +100,7 @@ export default async function handler(req: any, res: any, env?: any) {
     const cleanParentName = String(parentName || 'Orang Tua / Wali Murid').trim();
     const cleanDeviceName = String(deviceName || 'Ponsel Wali Murid').trim();
 
-    const db = getAdminClient();
+    const db = getAdminClient(cfEnv);
     let dbSuccess = false;
 
     if (db) {
@@ -156,7 +157,7 @@ export default async function handler(req: any, res: any, env?: any) {
       return json(res, 400, { error: 'endpoint wajib disertakan untuk pembatalan.' });
     }
 
-    const db = getAdminClient();
+    const db = getAdminClient(cfEnv);
     if (db) {
       try {
         await db.from('parent_push_subscriptions').delete().eq('endpoint', endpoint);
@@ -180,13 +181,13 @@ export default async function handler(req: any, res: any, env?: any) {
 
   // 3. SEND ATTENDANCE NOTIFICATION (MASUK & PULANG)
   if (action === 'send_attendance') {
-    const result = await sendAttendancePushToStudent(body);
+    const result = await sendAttendancePushToStudent(body, cfEnv);
     return json(res, result.ok ? 200 : 400, result);
   }
 
   // 4. SEND LEAVE REQUEST DECISION NOTIFICATION (IZIN & SAKIT)
   if (action === 'send_leave_decision') {
-    const result = await sendLeaveDecisionPushToStudent(body);
+    const result = await sendLeaveDecisionPushToStudent(body, cfEnv);
     return json(res, result.ok ? 200 : 400, result);
   }
 
@@ -197,22 +198,28 @@ export default async function handler(req: any, res: any, env?: any) {
  * Fungsi internal server-side untuk mengirimkan notifikasi presensi langsung ke semua perangkat terdaftar
  * (Dapat dipanggil langsung oleh /api/attendance tanpa melalui network loopback)
  */
-export async function sendAttendancePushToStudent(params: {
-  studentId: string;
-  studentName?: string;
-  eventType: 'masuk' | 'pulang' | string;
-  timeStr?: string;
-  status?: string;
-  notes?: string;
-  className?: string;
-}): Promise<{
+export async function sendAttendancePushToStudent(
+  params: {
+    studentId: string;
+    studentName?: string;
+    eventType: 'masuk' | 'pulang' | string;
+    timeStr?: string;
+    status?: string;
+    notes?: string;
+    className?: string;
+  },
+  env?: any
+): Promise<{
   ok: boolean;
   sentCount: number;
   failedCount: number;
   totalDevices: number;
   eventType: string;
   message: string;
+  errors?: any[];
 }> {
+  ensureVapidConfigured(env);
+
   const { studentId, studentName, eventType, timeStr, status, notes, className } = params;
   if (!studentId) {
     return {
@@ -261,10 +268,11 @@ export async function sendAttendancePushToStudent(params: {
     timestamp: Date.now(),
   });
 
-  const devices = await getSubscriptionsForStudent(studentId);
+  const devices = await getSubscriptionsForStudent(studentId, env);
   let successCount = 0;
   let failedCount = 0;
   const expiredEndpoints: string[] = [];
+  const pushErrors: any[] = [];
 
   await Promise.all(
     devices.map(async (dev) => {
@@ -282,6 +290,11 @@ export async function sendAttendancePushToStudent(params: {
         successCount++;
       } catch (sendErr: any) {
         failedCount++;
+        pushErrors.push({
+          endpoint: dev.endpoint ? `...${dev.endpoint.slice(-16)}` : '',
+          statusCode: sendErr?.statusCode,
+          message: sendErr?.message || String(sendErr),
+        });
         // HTTP 404 or 410 means the subscription has expired or was removed by the browser
         if (sendErr?.statusCode === 410 || sendErr?.statusCode === 404) {
           expiredEndpoints.push(dev.endpoint);
@@ -292,7 +305,7 @@ export async function sendAttendancePushToStudent(params: {
 
   // Clean up expired devices
   if (expiredEndpoints.length > 0) {
-    await removeExpiredEndpoints(studentId, expiredEndpoints);
+    await removeExpiredEndpoints(studentId, expiredEndpoints, env);
   }
 
   return {
@@ -302,27 +315,34 @@ export async function sendAttendancePushToStudent(params: {
     totalDevices: devices.length,
     eventType: type,
     message: `Notifikasi presensi ${type} berhasil dikirim ke ${successCount} perangkat.`,
+    errors: pushErrors.length > 0 ? pushErrors : undefined,
   };
 }
 
 /**
  * Fungsi internal server-side untuk mengirimkan notifikasi keputusan izin sakit ke ponsel orang tua
  */
-export async function sendLeaveDecisionPushToStudent(params: {
-  studentId: string;
-  studentName?: string;
-  leaveType: 'sakit' | 'izin' | string;
-  decision: 'APPROVED' | 'REJECTED' | string;
-  datesText?: string;
-  reviewerName?: string;
-  notes?: string;
-}): Promise<{
+export async function sendLeaveDecisionPushToStudent(
+  params: {
+    studentId: string;
+    studentName?: string;
+    leaveType: 'sakit' | 'izin' | string;
+    decision: 'APPROVED' | 'REJECTED' | string;
+    datesText?: string;
+    reviewerName?: string;
+    notes?: string;
+  },
+  env?: any
+): Promise<{
   ok: boolean;
   sentCount: number;
   failedCount: number;
   totalDevices: number;
   message: string;
+  errors?: any[];
 }> {
+  ensureVapidConfigured(env);
+
   const { studentId, studentName, leaveType, decision, datesText, reviewerName, notes } = params;
   if (!studentId) {
     return {
@@ -361,10 +381,11 @@ export async function sendLeaveDecisionPushToStudent(params: {
     timestamp: Date.now(),
   });
 
-  const devices = await getSubscriptionsForStudent(studentId);
+  const devices = await getSubscriptionsForStudent(studentId, env);
   let successCount = 0;
   let failedCount = 0;
   const expiredEndpoints: string[] = [];
+  const pushErrors: any[] = [];
 
   await Promise.all(
     devices.map(async (dev) => {
@@ -382,6 +403,11 @@ export async function sendLeaveDecisionPushToStudent(params: {
         successCount++;
       } catch (sendErr: any) {
         failedCount++;
+        pushErrors.push({
+          endpoint: dev.endpoint ? `...${dev.endpoint.slice(-16)}` : '',
+          statusCode: sendErr?.statusCode,
+          message: sendErr?.message || String(sendErr),
+        });
         if (sendErr?.statusCode === 410 || sendErr?.statusCode === 404) {
           expiredEndpoints.push(dev.endpoint);
         }
@@ -390,7 +416,7 @@ export async function sendLeaveDecisionPushToStudent(params: {
   );
 
   if (expiredEndpoints.length > 0) {
-    await removeExpiredEndpoints(studentId, expiredEndpoints);
+    await removeExpiredEndpoints(studentId, expiredEndpoints, env);
   }
 
   return {
@@ -399,6 +425,7 @@ export async function sendLeaveDecisionPushToStudent(params: {
     failedCount,
     totalDevices: devices.length,
     message: `Notifikasi persetujuan izin berhasil dikirim ke ${successCount} perangkat.`,
+    errors: pushErrors.length > 0 ? pushErrors : undefined,
   };
 }
 
@@ -414,9 +441,9 @@ function getAdminClient(env?: any) {
   });
 }
 
-async function getSubscriptionsForStudent(studentId: string) {
+async function getSubscriptionsForStudent(studentId: string, env?: any) {
   const key = String(studentId).trim();
-  const db = getAdminClient();
+  const db = getAdminClient(env);
   const results: Array<{
     id: string;
     studentId: string;
@@ -428,12 +455,45 @@ async function getSubscriptionsForStudent(studentId: string) {
     createdAt?: string;
   }> = [];
 
+  const candidateIds = new Set<string>([key]);
+
   if (db) {
     try {
+      // 1. Profil pengguna (id, student_id, username / NISN)
+      try {
+        const { data: prof } = await db
+          .from('profiles')
+          .select('id, student_id, username')
+          .or(`id.eq.${key},student_id.eq.${key},username.eq.${key}`)
+          .limit(5);
+        if (Array.isArray(prof)) {
+          prof.forEach((p) => {
+            if (p.id) candidateIds.add(p.id);
+            if (p.student_id) candidateIds.add(p.student_id);
+            if (p.username) candidateIds.add(p.username);
+          });
+        }
+      } catch (_) {}
+
+      // 2. Data siswa (id, nisn)
+      try {
+        const { data: stu } = await db
+          .from('students')
+          .select('id, nisn')
+          .or(`id.eq.${key},nisn.eq.${key}`)
+          .limit(5);
+        if (Array.isArray(stu)) {
+          stu.forEach((s) => {
+            if (s.id) candidateIds.add(s.id);
+            if (s.nisn) candidateIds.add(s.nisn);
+          });
+        }
+      } catch (_) {}
+
       const { data, error } = await db
         .from('parent_push_subscriptions')
         .select('*')
-        .eq('student_id', key);
+        .in('student_id', Array.from(candidateIds));
       if (!error && Array.isArray(data)) {
         data.forEach((row: any) => {
           results.push({
@@ -451,19 +511,21 @@ async function getSubscriptionsForStudent(studentId: string) {
     } catch (_) {}
   }
 
-  // Merge with memory fallback, avoiding duplicate endpoints
-  const fallbackList = fallbackSubscriptions.get(key) || [];
-  fallbackList.forEach((mem) => {
-    if (!results.some((r) => r.endpoint === mem.endpoint)) {
-      results.push(mem);
-    }
-  });
+  // Merge with memory fallback for all candidate IDs, avoiding duplicate endpoints
+  for (const cid of candidateIds) {
+    const fallbackList = fallbackSubscriptions.get(cid) || [];
+    fallbackList.forEach((mem) => {
+      if (!results.some((r) => r.endpoint === mem.endpoint)) {
+        results.push(mem);
+      }
+    });
+  }
 
   return results;
 }
 
-async function removeExpiredEndpoints(studentId: string, expiredEndpoints: string[]) {
-  const db = getAdminClient();
+async function removeExpiredEndpoints(studentId: string, expiredEndpoints: string[], env?: any) {
+  const db = getAdminClient(env);
   if (db) {
     try {
       await db
