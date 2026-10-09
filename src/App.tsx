@@ -28,7 +28,6 @@ import { PublicDailyReportViewer } from './components/PublicDailyReportViewer';
 import { PublicSmartInvoiceViewer } from './components/PublicSmartInvoiceViewer';
 import { parseCanonicalReportParams } from './utils/smartReport';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { PWAFloatingInstallPrompt } from './components/PWAInstallButton';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 import type { ActiveView, UserRole } from './types';
 
@@ -496,11 +495,6 @@ const MainAppContent: React.FC = () => {
         isOpen={isSchoolUpgradeOpen}
         onClose={() => setIsSchoolUpgradeOpen(false)}
       />
-
-      {/* Global PWA Floating Install Prompt for Android & Windows */}
-      {activeView !== 'portal-siswa' && currentUser?.role !== 'SISWA' && (
-        <PWAFloatingInstallPrompt />
-      )}
 
       {/* Global Toast Notifications */}
       <ToastContainer />
