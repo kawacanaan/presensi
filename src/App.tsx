@@ -258,9 +258,10 @@ const MainAppContent: React.FC = () => {
   }, [currentUser, activeView, setActiveView]);
 
   // Kotak dialog resmi instalasi bawaan browser/perangkat (Android & Windows)
-  // Berlaku untuk semua role kecuali SUPER_ADMIN. Otomatis dilewati jika aplikasi sudah terpasang di perangkat.
+  // Khusus untuk role SISWA di Portal Siswa.
+  // Dinonaktifkan total untuk Admin Sekolah, Kepala Sekolah, Wali Kelas, Guru Mapel di Dashboard serta SuperAdmin.
   React.useEffect(() => {
-    if (!currentUser || currentUser.role === 'SUPER_ADMIN') return;
+    if (!currentUser || currentUser.role !== 'SISWA') return;
     const cleanup = triggerNativePWAInstallPrompt({
       role: currentUser.role,
       userId: currentUser.id,

@@ -18,7 +18,6 @@ import {
   unsubscribeParentDevice,
   PushDeviceStatus,
 } from '../utils/webPushManager';
-import { PWAInstallButton } from './PWAInstallButton';
 import type { Student } from '../types';
 
 interface ParentPushNotificationCardProps {
@@ -109,8 +108,6 @@ export const ParentPushNotificationCard: React.FC<ParentPushNotificationCardProp
             </p>
           </div>
         </div>
-
-        <PWAInstallButton variant="compact" />
       </div>
 
       {/* Status Banner */}

@@ -27,7 +27,6 @@ import {
   Key
 } from 'lucide-react';
 import { getTenantLifecycleInfo } from '../utils/tenantLifecycle';
-import { PWAInstallButton } from './PWAInstallButton';
 
 export const Header: React.FC = () => {
   const { 
@@ -395,9 +394,6 @@ export const Header: React.FC = () => {
                   <span>{getFormattedDate()}</span>
                   <ChevronDown size={11} className="text-slate-400 ml-0.5" />
                 </div>
-
-                {/* PWA Install Button */}
-                <PWAInstallButton variant="compact" className="inline-flex" />
 
                 {/* Notification Bell */}
                 <div className="relative" ref={notifRef}>

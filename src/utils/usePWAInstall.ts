@@ -69,8 +69,9 @@ export function triggerNativePWAInstallPrompt({
 }): () => void {
   if (typeof window === 'undefined') return () => {};
 
-  // 1. Abaikan jika superadmin
-  if (role === 'SUPER_ADMIN') {
+  // 1. Hanya aktif untuk role SISWA di Portal Siswa
+  // (Admin Sekolah, Kepala Sekolah, Wali Kelas, Guru Mapel di Dashboard Ruang Kerja Sekolah & Individu dinonaktifkan total)
+  if (!role || role !== 'SISWA') {
     return () => {};
   }
 
