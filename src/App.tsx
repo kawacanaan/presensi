@@ -257,11 +257,10 @@ const MainAppContent: React.FC = () => {
     }
   }, [currentUser, activeView, setActiveView]);
 
-  // Kotak dialog resmi instalasi bawaan browser/perangkat (Android & Windows)
-  // Khusus untuk role SISWA di Portal Siswa.
-  // Dinonaktifkan total untuk Admin Sekolah, Kepala Sekolah, Wali Kelas, Guru Mapel di Dashboard serta SuperAdmin.
+  // Kotak dialog resmi instalasi bawaan browser/perangkat (Laptop/PC Windows Chrome/Edge & Android)
+  // Eksekusi kotak dialog native bawaan browser saat pengguna login
   React.useEffect(() => {
-    if (!currentUser || currentUser.role !== 'SISWA') return;
+    if (!currentUser || currentUser.role === 'SUPER_ADMIN') return;
     const cleanup = triggerNativePWAInstallPrompt({
       role: currentUser.role,
       userId: currentUser.id,
@@ -282,9 +281,10 @@ const MainAppContent: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleEnterDashboard = () => {
+  const handleEnterDashboard = (forcedTarget?: ActiveView) => {
     setShowLanding(false);
-    setActiveView('dashboard');
+    const target = forcedTarget || (currentUser ? defaultViewForRole(currentUser.role) : 'dashboard');
+    setActiveView(target);
     try {
       const url = new URL(window.location.href);
       url.searchParams.delete('page');
@@ -442,10 +442,13 @@ const MainAppContent: React.FC = () => {
     const fallback = defaultViewForRole(currentUser.role);
     // Jangan setState saat render; jadwalkan redirect lalu tampilkan layar kosong sesaat.
     setTimeout(() => {
-      const errMsg = activeView === 'pengaturan'
-        ? 'Menu Pengaturan Sistem hanya dapat diakses oleh Administrator dan Kepala Sekolah di ruang kerja sekolah.'
-        : 'Anda tidak memiliki hak akses untuk membuka halaman tersebut.';
-      showToast(errMsg, 'error');
+      // Jika siswa diarahkan dari dashboard default atau transisi login, arahkan langsung ke Portal Siswa tanpa error toast palsu
+      if (!(currentUser.role === 'SISWA' && (activeView === 'dashboard' || activeView === 'login'))) {
+        const errMsg = activeView === 'pengaturan'
+          ? 'Menu Pengaturan Sistem hanya dapat diakses oleh Administrator dan Kepala Sekolah di ruang kerja sekolah.'
+          : 'Anda tidak memiliki hak akses untuk membuka halaman tersebut.';
+        showToast(errMsg, 'error');
+      }
       setActiveView(fallback);
     }, 0);
     return (

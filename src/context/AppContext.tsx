@@ -61,7 +61,7 @@ interface AppContextType {
   loginWithCredentials: (
     identifier: string,
     pass: string,
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{ success: boolean; error?: string; user?: UserAccount | null; role?: UserRole }>;
   // Workspace & Onboarding
   userWorkspaces: WorkspaceMembership[];
   activeWorkspace: WorkspaceMembership | null;
@@ -719,7 +719,7 @@ export const clearSessionTimers = () => {
 
 export const VIEW_ROLE_PERMISSIONS: Record<ActiveView, UserRole[] | "all"> = {
   login: "all",
-  dashboard: ["SUPER_ADMIN", "ADMIN", "KEPALA SEKOLAH", "WALI KELAS", "GURU MAPEL", "SISWA"],
+  dashboard: ["ADMIN", "KEPALA SEKOLAH", "WALI KELAS", "GURU MAPEL"],
   superadmin: ["SUPER_ADMIN"],
   "data-referensi": ["ADMIN", "KEPALA SEKOLAH", "WALI KELAS", "GURU MAPEL"],
   "data-pengguna": ["ADMIN", "WALI KELAS", "GURU MAPEL", "KEPALA SEKOLAH"],
@@ -745,15 +745,17 @@ export const resolveInitialViewForRole = (
   role: UserRole,
   targetView?: ActiveView | null,
 ): ActiveView => {
+  if (role === "SUPER_ADMIN") return "superadmin";
+  if (role === "SISWA") return "portal-siswa";
   if (
     targetView &&
     targetView !== "login" &&
+    targetView !== "superadmin" &&
+    targetView !== "portal-siswa" &&
     isViewAllowedForRole(targetView, role)
   ) {
     return targetView;
   }
-  if (role === "SUPER_ADMIN") return "superadmin";
-  if (role === "SISWA") return "portal-siswa";
   return "dashboard";
 };
 
@@ -1670,7 +1672,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const loginWithCredentials = async (
     identifier: string,
     pass: string,
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; error?: string; user?: UserAccount | null; role?: UserRole }> => {
     isLoggingOutRef.current = false;
     setIsLoginPreparing(true);
     setLoginStep(1);
@@ -1695,9 +1697,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoginProgressMessage("Membaca profil & ruang kerja sekolah...");
 
       await loadData(data.user.id);
+      const cached = getCachedUserSession();
 
       setIsLoginPreparing(false);
-      return { success: true };
+      return { success: true, user: cached, role: cached?.role };
     } catch (err: any) {
       setIsLoginPreparing(false);
       return {

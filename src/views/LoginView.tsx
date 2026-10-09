@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useApp, isAuthCallbackUrl } from '../context/AppContext';
+import { useApp, isAuthCallbackUrl, resolveInitialViewForRole } from '../context/AppContext';
 import { AppLoginLoadingScreen } from '../components/AppLoginLoadingScreen';
 import { KawacanaanEmblem } from '../components/KawacanaanEmblem';
 import { usePlatformBrand } from '../utils/platformBranding';
+import { clearPWADismissedState, executeImmediatePWAInstall, isAndroidOrWindows } from '../utils/usePWAInstall';
 import { FreeStartModal } from '../landing/components/FreeStartModal';
 import { TermsAndLegalModal, LegalTabType } from '../landing/components/TermsAndLegalModal';
 import {
@@ -27,7 +28,7 @@ import {
 
 interface LoginViewProps {
   onBackToLanding?: () => void;
-  onEnterDashboard?: () => void;
+  onEnterDashboard?: (target?: any) => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding, onEnterDashboard }) => {
@@ -135,10 +136,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding, onEnterDa
 
   useEffect(() => {
     if (currentUser) {
+      const targetView = resolveInitialViewForRole(currentUser.role);
       if (onEnterDashboard) {
-        onEnterDashboard();
+        onEnterDashboard(targetView);
       } else {
-        setActiveView('dashboard');
+        setActiveView(targetView);
         try {
           const url = new URL(window.location.href);
           url.searchParams.delete('page');
@@ -178,11 +180,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding, onEnterDa
       }
 
       showToast('Login berhasil. Selamat datang!', 'success');
-      // Transisi ke dashboard ditangani langsung dengan data yang sudah 100% siap
+      const targetRole = res?.role || res?.user?.role || currentUser?.role || 'ADMIN';
+      const targetView = resolveInitialViewForRole(targetRole);
+
+      // Bersihkan batas waktu penolakan dan eksekusi kotak dialog instalasi bawaan browser (Windows Chrome/Edge & Android)
+      clearPWADismissedState(res?.user?.id, targetRole);
+      if (isAndroidOrWindows()) {
+        void executeImmediatePWAInstall();
+      }
+
+      // Transisi ke portal / dashboard sesuai hak akses role pengguna (Siswa -> portal-siswa, Guru/Admin -> dashboard)
       if (onEnterDashboard) {
-        onEnterDashboard();
+        onEnterDashboard(targetView);
       } else {
-        setActiveView('dashboard');
+        setActiveView(targetView);
         try {
           const url = new URL(window.location.href);
           url.searchParams.delete('page');
@@ -619,18 +630,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding, onEnterDa
         }}
         onEnterSystem={() => {
           setIsFreeStartOpen(false);
+          const target = currentUser ? resolveInitialViewForRole(currentUser.role) : 'dashboard';
           if (onEnterDashboard) {
-            onEnterDashboard();
+            onEnterDashboard(target);
           } else {
-            setActiveView('dashboard');
+            setActiveView(target);
           }
         }}
         onEnterDashboard={() => {
           setIsFreeStartOpen(false);
+          const target = currentUser ? resolveInitialViewForRole(currentUser.role) : 'dashboard';
           if (onEnterDashboard) {
-            onEnterDashboard();
+            onEnterDashboard(target);
           } else {
-            setActiveView('dashboard');
+            setActiveView(target);
           }
         }}
         lang="ID"

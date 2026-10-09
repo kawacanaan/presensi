@@ -44,21 +44,75 @@ export function isPWAAlreadyInstalled(): boolean {
 }
 
 /**
- * Memeriksa apakah perangkat adalah Android atau Windows
+ * Memeriksa apakah perangkat adalah Windows (Laptop/PC dengan Chrome atau Edge)
  */
-export function isAndroidOrWindows(): boolean {
+export function isWindowsDevice(): boolean {
   if (typeof window === 'undefined') return false;
-  const ua = window.navigator.userAgent.toLowerCase();
-  const isAndroid = /android/.test(ua);
-  const isWindows = /win/.test(ua);
-  return isAndroid || isWindows;
+  const ua = (window.navigator?.userAgent || '').toLowerCase();
+  const navAny = window.navigator as any;
+  const platform = (navAny.userAgentData?.platform || navAny.platform || '').toLowerCase();
+  return /windows|win32|win64/.test(ua) || /win/.test(platform);
 }
 
 /**
- * Memicu kotak dialog resmi instalasi bawaan browser/perangkat (Android & Windows).
- * Berlaku untuk semua role kecuali SUPER_ADMIN.
- * Otomatis dilewati jika aplikasi sudah terpasang di perangkat.
- * Tanpa pop-up atau modal buatan sistem Kawacanaan sama sekali.
+ * Memeriksa apakah perangkat adalah Android
+ */
+export function isAndroidDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  const ua = (window.navigator?.userAgent || '').toLowerCase();
+  const navAny = window.navigator as any;
+  const platform = (navAny.userAgentData?.platform || navAny.platform || '').toLowerCase();
+  return /android/.test(ua) || /android/.test(platform);
+}
+
+/**
+ * Memeriksa apakah perangkat adalah Android atau Windows
+ */
+export function isAndroidOrWindows(): boolean {
+  return isWindowsDevice() || isAndroidDevice();
+}
+
+/**
+ * Bersihkan penundaan kotak dialog bawaan browser saat user baru login
+ */
+export function clearPWADismissedState(userId?: string, role?: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(`kawacanaan_pwa_native_dismissed_${userId || role || 'user'}`);
+    localStorage.removeItem('kawacanaan_pwa_native_dismissed_session');
+  } catch (_) {}
+}
+
+/**
+ * Eksekusi langsung kotak dialog instalasi bawaan browser (Chrome / Edge di Windows & Android)
+ * Dijalankan dalam konteks user gesture (misalnya saat tombol login ditekan).
+ */
+export async function executeImmediatePWAInstall(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  if (isPWAAlreadyInstalled()) return false;
+  const promptEvt = window.__PWA_DEFERRED_PROMPT__;
+  if (!promptEvt) return false;
+  try {
+    await promptEvt.prompt();
+    const choice = await promptEvt.userChoice;
+    if (choice?.outcome === 'accepted') {
+      try {
+        localStorage.setItem('kawacanaan_pwa_installed', 'true');
+      } catch (_) {}
+      window.__PWA_DEFERRED_PROMPT__ = null;
+      return true;
+    }
+  } catch (err) {
+    console.debug('[PWA] Immediate install deferral:', err);
+  }
+  return false;
+}
+
+/**
+ * Memicu kotak dialog resmi instalasi bawaan browser/perangkat (Laptop/PC Windows Chrome/Edge & Android).
+ * Berlaku saat pengguna login di sistem.
+ * Otomatis dilewati jika aplikasi sudah terpasang di perangkat (standalone window).
+ * Menampilkan 100% dialog native browser (tanpa pop-up buatan Kawacanaan).
  */
 export function triggerNativePWAInstallPrompt({
   role,
@@ -66,26 +120,25 @@ export function triggerNativePWAInstallPrompt({
 }: {
   role?: string;
   userId?: string;
-}): () => void {
+} = {}): () => void {
   if (typeof window === 'undefined') return () => {};
 
-  // 1. Hanya aktif untuk role SISWA di Portal Siswa
-  // (Admin Sekolah, Kepala Sekolah, Wali Kelas, Guru Mapel di Dashboard Ruang Kerja Sekolah & Individu dinonaktifkan total)
-  if (!role || role !== 'SISWA') {
-    return () => {};
-  }
-
-  // 2. Abaikan jika aplikasi sudah terpasang di perangkat
+  // 1. Abaikan jika aplikasi sudah terpasang di perangkat
   if (isPWAAlreadyInstalled()) {
     return () => {};
   }
 
-  // 3. Hanya jalankan pada perangkat Android dan Windows
+  // 2. Hanya jalankan pada perangkat Laptop/PC Windows (Chrome / Edge) atau Android
   if (!isAndroidOrWindows()) {
     return () => {};
   }
 
-  // 4. Cek apakah pengguna baru saja menolak native dialog (snooze 3 hari agar tidak spamming sistem OS)
+  // 3. Jangan aktifkan pada konsol Super Admin
+  if (role === 'SUPER_ADMIN') {
+    return () => {};
+  }
+
+  // 4. Cek penolakan sebelumnya (snooze 1 hari agar tidak berulang kali memblokir aktivitas yang sama)
   const dismissedKey = `kawacanaan_pwa_native_dismissed_${userId || role || 'user'}`;
   try {
     const snoozedUntil = localStorage.getItem(dismissedKey);
@@ -96,63 +149,73 @@ export function triggerNativePWAInstallPrompt({
 
   let isCleanedUp = false;
   let interactionCleanup: (() => void) | null = null;
+  let timer: any = null;
 
   const showPrompt = async (promptEvt: BeforeInstallPromptEvent) => {
     if (isCleanedUp) return;
     try {
       await promptEvt.prompt();
       const choice = await promptEvt.userChoice;
-      if (choice.outcome === 'accepted') {
+      if (choice?.outcome === 'accepted') {
         try {
           localStorage.setItem('kawacanaan_pwa_installed', 'true');
         } catch (_) {}
         window.__PWA_DEFERRED_PROMPT__ = null;
       } else {
-        // Pengguna menolak di dialog native browser -> tunda 3 hari
+        // Pengguna memilih batal/nanti pada dialog native browser -> tunda 1 hari
         try {
-          localStorage.setItem(dismissedKey, String(Date.now() + 3 * 24 * 60 * 60 * 1000));
+          localStorage.setItem(dismissedKey, String(Date.now() + 24 * 60 * 60 * 1000));
         } catch (_) {}
       }
     } catch (err) {
-      // Jika browser mensyaratkan user activation (gesture), pasang listener interaksi pertama
+      // Browser (Chrome/Edge desktop di Windows) mensyaratkan user gesture aktif,
+      // pasang listener interaksi pertama (klik/keyboard)
       setupFallbackGesture(promptEvt);
     }
   };
 
   const setupFallbackGesture = (promptEvt: BeforeInstallPromptEvent) => {
     if (isCleanedUp) return;
+    if (interactionCleanup) {
+      interactionCleanup();
+      interactionCleanup = null;
+    }
+
     const handleGesture = () => {
       cleanupGesture();
       if (!isCleanedUp) {
         void showPrompt(promptEvt);
       }
     };
+
     const cleanupGesture = () => {
       window.removeEventListener('click', handleGesture, true);
-      window.removeEventListener('touchend', handleGesture, true);
+      window.removeEventListener('pointerup', handleGesture, true);
       window.removeEventListener('keydown', handleGesture, true);
+      interactionCleanup = null;
     };
+
     interactionCleanup = cleanupGesture;
     window.addEventListener('click', handleGesture, { capture: true, once: true });
-    window.addEventListener('touchend', handleGesture, { capture: true, once: true });
+    window.addEventListener('pointerup', handleGesture, { capture: true, once: true });
     window.addEventListener('keydown', handleGesture, { capture: true, once: true });
   };
-
-  let timer: NodeJS.Timeout | null = null;
 
   const tryPrompting = () => {
     const promptEvt = window.__PWA_DEFERRED_PROMPT__;
     if (promptEvt) {
-      // Tunggu 800ms agar halaman dan dashboard selesai dimuat
-      timer = setTimeout(() => {
-        void showPrompt(promptEvt);
-      }, 800);
+      // Pada Laptop/PC Windows atau Android, coba langsung jalankan dialog bawaan browser
+      // Jika browser memblokir karena membutuhkan user gesture, listener gesture langsung aktif
+      void showPrompt(promptEvt);
     }
   };
 
   // Jika event beforeinstallprompt sudah tertangkap sebelumnya:
   if (window.__PWA_DEFERRED_PROMPT__) {
-    tryPrompting();
+    // Jalankan segera setelah render siap (300ms)
+    timer = setTimeout(() => {
+      tryPrompting();
+    }, 300);
   }
 
   // Dengarkan juga event beforeinstallprompt jika baru datang sesaat setelah login
