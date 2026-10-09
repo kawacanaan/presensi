@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useApp, isAuthCallbackUrl } from '../context/AppContext';
 import { AppLoginLoadingScreen } from '../components/AppLoginLoadingScreen';
 import { KawacanaanEmblem } from '../components/KawacanaanEmblem';
-import { PWAInstallButton } from '../components/PWAInstallButton';
 import { usePlatformBrand } from '../utils/platformBranding';
 import { FreeStartModal } from '../landing/components/FreeStartModal';
 import { TermsAndLegalModal, LegalTabType } from '../landing/components/TermsAndLegalModal';
@@ -335,9 +334,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding, onEnterDa
               </div>
             )}
           </div>
-
-          {/* Banner PWA: Instal Aplikasi di Android & Windows */}
-          <PWAInstallButton variant="banner" className="mb-4" />
 
           {/* Error Alert Box */}
           {errorMessage && (

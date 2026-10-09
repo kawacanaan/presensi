@@ -41,8 +41,6 @@ import type { Student, AttendanceRecord, SchoolClass } from '../types';
 import { parseClassQrPayload } from '../utils/classQr';
 import { playChimeSuccess, playChimeWarning } from '../utils/audioFeedback';
 import { getServerNow, formatServerTimeString, formatServerDateString, syncServerTime } from '../utils/serverTime';
-import { ParentPushNotificationCard } from '../components/ParentPushNotificationCard';
-import { PWAInstallButton } from '../components/PWAInstallButton';
 import {
   getDevicePushStatus,
   requestAdaptiveNativePushPermission,
@@ -1128,7 +1126,6 @@ export const PortalSiswaView: React.FC = () => {
                       <Bell size={11} className={devicePushActive ? 'fill-blue-600' : ''} />
                       <span>{devicePushActive ? 'Notifikasi Aktif' : 'Notifikasi'}</span>
                     </button>
-                    <PWAInstallButton variant="compact" className="text-[10px] py-0.5 px-2 rounded-full" />
                   </div>
                 </div>
 
@@ -1156,9 +1153,6 @@ export const PortalSiswaView: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Banner PWA: Pasang Aplikasi ke Layar Utama (Android, Windows PC, iOS) */}
-              <PWAInstallButton variant="banner" className="mb-4" />
 
               {/* Hero Card: Absensi Hari Ini (Vibrant Blue Card with School Illustration) */}
               <div className="rounded-3xl bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 text-white p-4 sm:p-5 relative overflow-hidden shadow-lg shadow-blue-500/25">
@@ -1273,9 +1267,6 @@ export const PortalSiswaView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Notifikasi Push PWA ke HP Orang Tua (Masuk & Pulang - Multi-Device: Ayah & Ibu) */}
-              <ParentPushNotificationCard student={activeStudent} schoolId={activeStudent.schoolId} />
-
               {/* Ringkasan Absensi Section */}
               <div className="space-y-3 pt-1">
                 <div className="flex items-center justify-between">
@@ -1349,22 +1340,6 @@ export const PortalSiswaView: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
-                {/* Motivational Pill Banner */}
-                <button
-                  onClick={() => navigateTo('riwayat')}
-                  className="w-full bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/80 rounded-2xl p-3 flex items-center justify-between text-left transition-all active:scale-98 cursor-pointer shadow-2xs"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                      <Check size={14} strokeWidth={3} />
-                    </div>
-                    <span className="text-xs font-bold text-emerald-950">
-                      Kamu sudah hadir {monthlyStats.hadir} hari di bulan ini. Tetap semangat!
-                    </span>
-                  </div>
-                  <ChevronRight size={16} className="text-emerald-700 shrink-0" />
-                </button>
               </div>
             </div>
           )}

@@ -387,7 +387,6 @@ const MainAppContent: React.FC = () => {
       <>
         <LoginView onBackToLanding={handleBackToLanding} onEnterDashboard={handleEnterDashboard} />
         <ToastContainer />
-        <PWAFloatingInstallPrompt />
       </>
     );
   }
@@ -499,7 +498,9 @@ const MainAppContent: React.FC = () => {
       />
 
       {/* Global PWA Floating Install Prompt for Android & Windows */}
-      <PWAFloatingInstallPrompt />
+      {activeView !== 'portal-siswa' && currentUser?.role !== 'SISWA' && (
+        <PWAFloatingInstallPrompt />
+      )}
 
       {/* Global Toast Notifications */}
       <ToastContainer />
