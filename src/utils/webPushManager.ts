@@ -21,6 +21,14 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
+export function isIosDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  const isIos = /iphone|ipad|ipod/i.test(ua);
+  const isMacTouch = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  return isIos || isMacTouch;
+}
+
 export function detectDeviceName(): string {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return 'Ponsel Orang Tua';
   const ua = navigator.userAgent;
@@ -225,6 +233,14 @@ export async function subscribeParentDevice({
         });
       } catch (_) {}
 
+      try {
+        window.dispatchEvent(
+          new CustomEvent('kawacanaan_push_status_changed', {
+            detail: { isSubscribed: true, studentId },
+          })
+        );
+      } catch (_) {}
+
       return {
         success: true,
         message: body.message || 'Perangkat berhasil terhubung!',
@@ -270,6 +286,14 @@ export async function unsubscribeParentDevice(studentId: string): Promise<{ succ
       localStorage.removeItem(`kawacanaan_push_sub_${studentId}`);
     } catch (_) {}
 
+    try {
+      window.dispatchEvent(
+        new CustomEvent('kawacanaan_push_status_changed', {
+          detail: { isSubscribed: false, studentId },
+        })
+      );
+    } catch (_) {}
+
     return {
       success: true,
       message: 'Notifikasi pada perangkat ini telah dinonaktifkan.',
@@ -279,6 +303,117 @@ export async function unsubscribeParentDevice(studentId: string): Promise<{ succ
       success: false,
       message: err?.message || 'Gagal menonaktifkan notifikasi.',
     };
+  }
+}
+
+/**
+ * Inisialisasi perizinan notifikasi native adaptif tanpa modal / tombol perantara:
+ * - Pengguna Android / Desktop: langsung memicu dialog native sistem operasi (Notification.requestPermission()) saat masuk dashboard.
+ * - Pengguna iPhone (iOS Safari / PWA): Apple mewajibkan user gesture sentuhan jari, sistem memasang listener satu kali klik/sentuhan di mana saja.
+ * Begitu user memilih 'Izinkan', perangkat langsung otomatis berlangganan di latar belakang.
+ */
+export function requestAdaptiveNativePushPermission({
+  studentId,
+  parentName,
+  schoolId,
+  onSuccess,
+}: {
+  studentId: string;
+  parentName?: string;
+  schoolId?: string;
+  onSuccess?: (deviceCount?: number) => void;
+}): () => void {
+  if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
+    return () => {};
+  }
+
+  // Jika izin browser sudah pernah ditolak permanen (denied), jangan ganggu pengguna
+  if (Notification.permission === 'denied') {
+    return () => {};
+  }
+
+  const dismissedKey = `kawacanaan_push_native_dismissed_${studentId}`;
+  if (localStorage.getItem(dismissedKey) === 'true') {
+    return () => {};
+  }
+
+  const resolvedName = parentName || detectDeviceName();
+
+  const executePermissionAndSubscribe = async () => {
+    try {
+      let perm = Notification.permission;
+      if (perm !== 'granted') {
+        perm = await Notification.requestPermission();
+      }
+
+      if (perm === 'granted') {
+        const res = await subscribeParentDevice({
+          studentId,
+          parentName: resolvedName,
+          schoolId,
+        });
+        if (res.success) {
+          try {
+            window.dispatchEvent(
+              new CustomEvent('kawacanaan_push_status_changed', {
+                detail: { isSubscribed: true, studentId },
+              })
+            );
+          } catch (_) {}
+          if (onSuccess) {
+            onSuccess(res.deviceCount);
+          }
+        }
+      } else if (perm === 'denied') {
+        try {
+          localStorage.setItem(dismissedKey, 'true');
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.warn('[Push] Error requesting native permission:', err);
+    }
+  };
+
+  // Jika izin notifikasi sudah 'granted', pastikan status lokal & server sinkron
+  if (Notification.permission === 'granted') {
+    const isSubscribedLocally = localStorage.getItem(`kawacanaan_push_sub_${studentId}`) === 'true';
+    if (!isSubscribedLocally) {
+      void executePermissionAndSubscribe();
+    }
+    return () => {};
+  }
+
+  const isIos = isIosDevice();
+
+  if (!isIos) {
+    // 1. PENGGUNA ANDROID / DESKTOP:
+    // Langsung picu dialog resmi native dari ponsel setelah jeda 400ms (agar dashboard selesai dimuat)
+    const timer = setTimeout(() => {
+      void executePermissionAndSubscribe();
+    }, 400);
+
+    return () => clearTimeout(timer);
+  } else {
+    // 2. PENGGUNA IPHONE (iOS Safari / PWA):
+    // Apple melarang prompt otomatis tanpa gesture sentuhan. Pasang listener satu kali klik/tap di mana saja.
+    let triggered = false;
+
+    const handleFirstUserInteraction = () => {
+      if (triggered) return;
+      triggered = true;
+      cleanup();
+      void executePermissionAndSubscribe();
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('click', handleFirstUserInteraction, true);
+      window.removeEventListener('touchend', handleFirstUserInteraction, true);
+    };
+
+    window.addEventListener('click', handleFirstUserInteraction, { capture: true, once: true });
+    window.addEventListener('touchend', handleFirstUserInteraction, { capture: true, once: true });
+
+    return cleanup;
   }
 }
 

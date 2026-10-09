@@ -43,8 +43,12 @@ import { playChimeSuccess, playChimeWarning } from '../utils/audioFeedback';
 import { getServerNow, formatServerTimeString, formatServerDateString, syncServerTime } from '../utils/serverTime';
 import { ParentPushNotificationCard } from '../components/ParentPushNotificationCard';
 import { PWAInstallButton } from '../components/PWAInstallButton';
-import { getDevicePushStatus } from '../utils/webPushManager';
-import { StudentPushNotificationPromptModal } from '../components/StudentPushNotificationPromptModal';
+import {
+  getDevicePushStatus,
+  requestAdaptiveNativePushPermission,
+  subscribeParentDevice,
+  detectDeviceName,
+} from '../utils/webPushManager';
 
 type MobileScreen = 'beranda' | 'absensi-menu' | 'profil' | 'scanner' | 'riwayat' | 'detail' | 'izin-sakit';
 
@@ -249,39 +253,44 @@ export const PortalSiswaView: React.FC = () => {
     );
   }, [currentUser, students, classes]);
 
-  // Dialog & Status Push Notifikasi Otomatis pada Ponsel
-  const [showPushNotificationPrompt, setShowPushNotificationPrompt] = useState<boolean>(false);
+  // Status Push Notifikasi Otomatis pada Ponsel
   const [devicePushActive, setDevicePushActive] = useState<boolean>(false);
 
-  // Periksa status notifikasi saat siswa/wali murid pertama kali login ke Portal Siswa
+  // Inisialisasi izin notifikasi native adaptif begitu siswa/orang tua mendarat di Portal Siswa:
+  // - Android / Desktop: langsung memicu dialog native izin ponsel (Notification.requestPermission()) tanpa tombol perantara.
+  // - iPhone (iOS Safari / PWA): Apple mewajibkan gesture sentuhan, dipicu otomatis pada sentuhan pertama di mana saja.
   useEffect(() => {
     if (!activeStudent?.id) return;
 
     let isMounted = true;
     getDevicePushStatus(activeStudent.id).then((st) => {
-      if (!isMounted) return;
-      setDevicePushActive(st.isSubscribed);
-
-      try {
-        const dismissedKey = `kawacanaan_push_prompt_dismissed_${activeStudent.id}`;
-        const dismissedVal = localStorage.getItem(dismissedKey);
-        const isDismissedForever = dismissedVal === 'subscribed';
-        const isSnoozed = dismissedVal && !isNaN(Number(dismissedVal)) && Number(dismissedVal) > Date.now();
-
-        // Jika perangkat belum terdaftar notifikasi, izin browser belum ditolak permanen, dan belum di-dismiss/snooze:
-        if (!st.isSubscribed && st.permission !== 'denied' && !isDismissedForever && !isSnoozed) {
-          const timer = setTimeout(() => {
-            if (isMounted) setShowPushNotificationPrompt(true);
-          }, 900);
-          return () => clearTimeout(timer);
-        }
-      } catch (_) {}
+      if (isMounted) setDevicePushActive(st.isSubscribed);
     });
+
+    const cleanup = requestAdaptiveNativePushPermission({
+      studentId: activeStudent.id,
+      schoolId: activeStudent.schoolId || schoolProfile?.id || currentUser?.schoolId,
+      onSuccess: () => {
+        if (isMounted) {
+          setDevicePushActive(true);
+          showToast('Notifikasi kehadiran resmi aktif pada ponsel ini!', 'success');
+        }
+      },
+    });
+
+    const handleStatusChange = (e: any) => {
+      if (isMounted && e?.detail?.isSubscribed !== undefined) {
+        setDevicePushActive(Boolean(e.detail.isSubscribed));
+      }
+    };
+    window.addEventListener('kawacanaan_push_status_changed', handleStatusChange);
 
     return () => {
       isMounted = false;
+      cleanup();
+      window.removeEventListener('kawacanaan_push_status_changed', handleStatusChange);
     };
-  }, [activeStudent?.id]);
+  }, [activeStudent?.id, currentUser?.schoolId, schoolProfile?.id, showToast]);
 
   // Resolusi kelas siswa
   const studentClass = useMemo(() => {
@@ -1088,15 +1097,36 @@ export const PortalSiswaView: React.FC = () => {
                     </span>
                     <button
                       type="button"
-                      onClick={() => setShowPushNotificationPrompt(true)}
+                      onClick={async () => {
+                        if (devicePushActive) {
+                          showToast('Notifikasi presensi sudah aktif pada perangkat ini.', 'info');
+                          return;
+                        }
+                        try {
+                          const perm = await Notification.requestPermission();
+                          if (perm === 'granted') {
+                            const res = await subscribeParentDevice({
+                              studentId: activeStudent.id,
+                              schoolId: activeStudent.schoolId || schoolProfile?.id || currentUser?.schoolId,
+                              parentName: detectDeviceName(),
+                            });
+                            if (res.success) {
+                              setDevicePushActive(true);
+                              showToast('Notifikasi kehadiran resmi aktif pada ponsel ini!', 'success');
+                            }
+                          } else {
+                            showToast('Izin notifikasi tidak diberikan pada peramban ponsel.', 'info');
+                          }
+                        } catch (_) {}
+                      }}
                       className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black transition-all cursor-pointer ${
                         devicePushActive
                           ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
-                          : 'bg-amber-50 text-amber-800 border border-amber-200 animate-pulse hover:bg-amber-100'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
                       }`}
                     >
                       <Bell size={11} className={devicePushActive ? 'fill-blue-600' : ''} />
-                      <span>{devicePushActive ? 'Notifikasi Aktif' : 'Aktifkan Notifikasi'}</span>
+                      <span>{devicePushActive ? 'Notifikasi Aktif' : 'Notifikasi'}</span>
                     </button>
                     <PWAInstallButton variant="compact" className="text-[10px] py-0.5 px-2 rounded-full" />
                   </div>
@@ -2640,17 +2670,7 @@ export const PortalSiswaView: React.FC = () => {
           </div>
         )}
 
-        {/* DIALOG AKTIFKAN PUSH NOTIFIKASI OTOMATIS SAAT LOGIN / AKSES MANDIRI */}
-        <StudentPushNotificationPromptModal
-          isOpen={showPushNotificationPrompt}
-          onClose={() => setShowPushNotificationPrompt(false)}
-          student={activeStudent}
-          schoolId={activeStudent.schoolId || schoolProfile?.id || currentUser?.schoolId}
-          onSubscribedSuccess={() => {
-            setDevicePushActive(true);
-            showToast('Ponsel Anda berhasil dihubungkan untuk notifikasi presensi otomatis!', 'success');
-          }}
-        />
+
 
       </div>
     </div>

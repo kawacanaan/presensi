@@ -48,6 +48,15 @@ export const ParentPushNotificationCard: React.FC<ParentPushNotificationCardProp
 
   useEffect(() => {
     checkStatus();
+
+    const handleStatusChange = () => {
+      checkStatus();
+    };
+
+    window.addEventListener('kawacanaan_push_status_changed', handleStatusChange);
+    return () => {
+      window.removeEventListener('kawacanaan_push_status_changed', handleStatusChange);
+    };
   }, [student.id]);
 
   const handleSubscribe = async () => {
