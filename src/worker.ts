@@ -94,11 +94,14 @@ function resolveRoute(pathname: string): ApiHandler | null {
 }
 
 function resolveWorkerSupabaseUrl(env: Env): string {
-  const candidates = [env.SUPABASE_URL, env.VITE_SUPABASE_URL];
-  const sbCo = candidates.find((c) => c && typeof c === 'string' && c.includes('.supabase.co'));
-  if (sbCo) return sbCo.trim();
+  const candidates = [
+    env.SUPABASE_URL,
+    env.VITE_SUPABASE_URL,
+    (globalThis as any).process?.env?.SUPABASE_URL,
+    (globalThis as any).process?.env?.VITE_SUPABASE_URL,
+  ];
   for (const c of candidates) {
-    if (c && typeof c === 'string' && c.trim() && !c.includes('placeholder')) {
+    if (c && typeof c === 'string' && c.trim() && !c.includes('placeholder') && !c.includes('your-project-id')) {
       return c.trim();
     }
   }
@@ -107,13 +110,35 @@ function resolveWorkerSupabaseUrl(env: Env): string {
 
 function resolveWorkerSupabaseAnonKey(env: Env): string {
   const candidates = [
-    env.VITE_SUPABASE_PUBLISHABLE_KEY,
     env.VITE_SUPABASE_ANON_KEY,
+    env.VITE_SUPABASE_PUBLISHABLE_KEY,
     env.SUPABASE_ANON_KEY,
     env.SUPABASE_PUBLISHABLE_KEY,
+    (globalThis as any).process?.env?.VITE_SUPABASE_ANON_KEY,
+    (globalThis as any).process?.env?.VITE_SUPABASE_PUBLISHABLE_KEY,
+    (globalThis as any).process?.env?.SUPABASE_ANON_KEY,
   ];
   for (const c of candidates) {
-    if (c && typeof c === 'string' && c.trim() && !c.includes('placeholder')) {
+    if (c && typeof c === 'string' && c.trim() && !c.includes('placeholder') && !c.includes('your-anon-key')) {
+      return c.trim();
+    }
+  }
+  return '';
+}
+
+function resolveWorkerSupabaseServiceRoleKey(env: Env): string {
+  const candidates = [
+    env.SUPABASE_SERVICE_ROLE_KEY,
+    env.SUPABASE_SECRET_KEY,
+    env.SERVICE_ROLE_KEY,
+    env.SUPABASE_KEY,
+    (globalThis as any).process?.env?.SUPABASE_SERVICE_ROLE_KEY,
+    (globalThis as any).process?.env?.SUPABASE_SECRET_KEY,
+    (globalThis as any).process?.env?.SERVICE_ROLE_KEY,
+    (globalThis as any).process?.env?.SUPABASE_KEY,
+  ];
+  for (const c of candidates) {
+    if (c && typeof c === 'string' && c.trim() && !c.includes('placeholder') && !c.includes('your-service-role-key')) {
       return c.trim();
     }
   }
@@ -142,10 +167,24 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     });
   }
 
-  // 2. Endpoint khusus konfigurasi publik runtime (/api/config)
+  // Resolusi environment variables terpusat
+  const supabaseUrl = resolveWorkerSupabaseUrl(env);
+  const supabaseAnonKey = resolveWorkerSupabaseAnonKey(env);
+  const supabaseServiceKey = resolveWorkerSupabaseServiceRoleKey(env);
+
+  const normalizedEnv: Env = {
+    ...env,
+    SUPABASE_URL: supabaseUrl || env.SUPABASE_URL || '',
+    VITE_SUPABASE_URL: supabaseUrl || env.VITE_SUPABASE_URL || '',
+    SUPABASE_ANON_KEY: supabaseAnonKey || env.SUPABASE_ANON_KEY || '',
+    VITE_SUPABASE_ANON_KEY: supabaseAnonKey || env.VITE_SUPABASE_ANON_KEY || '',
+    VITE_SUPABASE_PUBLISHABLE_KEY: supabaseAnonKey || env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+    SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey || env.SUPABASE_SERVICE_ROLE_KEY || '',
+    SUPABASE_SECRET_KEY: supabaseServiceKey || env.SUPABASE_SECRET_KEY || '',
+  };
+
+  // 2. Endpoint konfigurasi publik runtime (/api/config)
   if (url.pathname === '/api/config' || url.pathname === '/api/public-config') {
-    const supabaseUrl = resolveWorkerSupabaseUrl(env);
-    const supabaseAnonKey = resolveWorkerSupabaseAnonKey(env);
     return new Response(
       JSON.stringify({
         ok: true,
@@ -158,13 +197,90 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'no-store',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       }
     );
   }
 
-  // 3. Cari route handler yang cocok
+  // 3. Endpoint status & pemeriksaan konfigurasi aman (/api/check-config & /api/status)
+  // PERHATIAN: Hanya menampilkan ketersediaan boolean, TIDAK PERNAH mencetak nilai rahasia!
+  if (url.pathname === '/api/check-config' || url.pathname === '/api/status') {
+    const superadminSecret = (normalizedEnv.SUPERADMIN_SETUP_SECRET || normalizedEnv.SETUP_SUPERADMIN_SECRET || '').trim();
+    const midtransServer = (normalizedEnv.MIDTRANS_SERVER_KEY || '').trim();
+    const midtransClient = (normalizedEnv.MIDTRANS_CLIENT_KEY || normalizedEnv.VITE_MIDTRANS_CLIENT_KEY || '').trim();
+    const geminiKey = (normalizedEnv.GEMINI_API_KEY || normalizedEnv.GOOGLE_API_KEY || '').trim();
+    const vapidPublic = (normalizedEnv.VAPID_PUBLIC_KEY || '').trim();
+    const vapidPrivate = (normalizedEnv.VAPID_PRIVATE_KEY || '').trim();
+
+    // Verifikasi konektivitas database aman (query head: true tanpa mengubah atau mengekspos data)
+    let dbStatus: 'connected' | 'not_configured' | 'error' = 'not_configured';
+    let dbMessage = 'SUPABASE_URL atau SUPABASE_SERVICE_ROLE_KEY belum terpasang di Cloudflare Dashboard.';
+
+    if (supabaseUrl && supabaseServiceKey) {
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const testClient = createClient(supabaseUrl, supabaseServiceKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+
+        // Batasi pengecekan database maksimal 3 detik agar tidak memblokir respon
+        const checkPromise = (async () => {
+          const { error } = await testClient.from('schools').select('id', { count: 'exact', head: true });
+          if (error) {
+            const { error: err2 } = await testClient.from('platform_settings').select('id', { count: 'exact', head: true });
+            if (err2 && !err2.message?.includes('PGRST116')) {
+              return { status: 'error' as const, message: `Koneksi database gagal: ${err2.message}` };
+            }
+          }
+          return { status: 'connected' as const, message: 'Koneksi database Supabase berhasil.' };
+        })();
+
+        const timeoutPromise = new Promise<{ status: 'error'; message: string }>((resolve) =>
+          setTimeout(() => resolve({ status: 'error', message: 'Koneksi database timeout (3s)' }), 3000)
+        );
+
+        const res = await Promise.race([checkPromise, timeoutPromise]);
+        dbStatus = res.status;
+        dbMessage = res.message;
+      } catch (err: any) {
+        dbStatus = 'error';
+        dbMessage = `Error koneksi: ${err?.message || 'Gagal menghubungi host Supabase'}`;
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        worker: 'presensi',
+        runtime: 'cloudflare_workers',
+        database: {
+          status: dbStatus,
+          message: dbMessage,
+        },
+        variables: {
+          SUPABASE_URL: { configured: Boolean(supabaseUrl) },
+          SUPABASE_SERVICE_ROLE_KEY: { configured: Boolean(supabaseServiceKey) },
+          SUPABASE_ANON_KEY: { configured: Boolean(supabaseAnonKey) },
+          SUPERADMIN_SETUP_SECRET: { configured: Boolean(superadminSecret) },
+          MIDTRANS_SERVER_KEY: { configured: Boolean(midtransServer) },
+          MIDTRANS_CLIENT_KEY: { configured: Boolean(midtransClient) },
+          GEMINI_API_KEY: { configured: Boolean(geminiKey) },
+          VAPID_KEYS: { configured: Boolean(vapidPublic && vapidPrivate) },
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    );
+  }
+
+  // 4. Cari route handler yang cocok
   const handler = resolveRoute(url.pathname);
   if (!handler) {
     return new Response(
@@ -182,23 +298,23 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  // 4. Sinkronisasikan Environment Variables Cloudflare Worker ke process.env
-  setWorkerEnv(env);
+  // 5. Sinkronisasikan Environment Variables Cloudflare Worker ke process.env
+  setWorkerEnv(normalizedEnv);
 
-  // 5. Parse query parameters
+  // 6. Parse query parameters
   const query: Record<string, string> = {};
   url.searchParams.forEach((val, key) => {
     query[key] = val;
   });
 
-  // 6. Parse headers (simpan format lower-case dan original untuk kompatibilitas penuh)
+  // 7. Parse headers (simpan format lower-case dan original untuk kompatibilitas penuh)
   const headers: Record<string, string> = {};
   request.headers.forEach((val, key) => {
     headers[key.toLowerCase()] = val;
     headers[key] = val;
   });
 
-  // 7. Parse request body
+  // 8. Parse request body
   let body: any = {};
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
     const contentType = request.headers.get('content-type') || '';
@@ -228,14 +344,14 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  // 8. Siapkan objek `req` dengan menyertakan env langsung
+  // 9. Siapkan objek `req` dengan menyertakan env yang telah dinormalisasi
   const req: any = {
     method: request.method,
     url: request.url,
     headers,
     query,
     body,
-    env,
+    env: normalizedEnv,
     rawRequest: request,
   };
 
@@ -328,9 +444,9 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     },
   };
 
-  // 10. Jalankan handler dengan menyertakan env langsung
+  // 10. Jalankan handler dengan menyertakan env yang telah dinormalisasi
   try {
-    const maybePromise = handler(req, res, env);
+    const maybePromise = handler(req, res, normalizedEnv);
     let result: any = null;
     if (maybePromise && typeof maybePromise.then === 'function') {
       result = await maybePromise;
@@ -381,48 +497,55 @@ export default {
       // SPA Fallback: Jika aset tidak ditemukan (404) dan bukan file berekstensi,
       // sajikan /index.html agar routing React SPA berfungsi normal
       const isFileRequest = /\.[a-zA-Z0-9]+$/.test(url.pathname);
+      let isSpaFallback = false;
       if (assetResponse.status === 404 && request.method === 'GET' && !isFileRequest) {
         const indexRequest = new Request(new URL('/index.html', request.url).toString(), request);
         assetResponse = await env.ASSETS.fetch(indexRequest);
+        isSpaFallback = true;
       }
 
       // Injeksi otomatis runtime environment Supabase ke dalam HTML
       const contentType = assetResponse.headers.get('content-type') || '';
-      if (
-        (contentType.includes('text/html') || url.pathname === '/' || url.pathname.endsWith('.html')) &&
-        assetResponse.ok
-      ) {
+      const isHtml =
+        isSpaFallback ||
+        contentType.includes('text/html') ||
+        url.pathname === '/' ||
+        url.pathname.endsWith('.html') ||
+        (!isFileRequest && request.method === 'GET');
+
+      if (isHtml && assetResponse.ok) {
         const supabaseUrl = resolveWorkerSupabaseUrl(env);
         const supabaseAnonKey = resolveWorkerSupabaseAnonKey(env);
 
-        if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
-          try {
-            const html = await assetResponse.text();
-            const configScript = `<script id="__CLOUDFLARE_RUNTIME_CONFIG__">window.__CLOUDFLARE_ENV__=${JSON.stringify({
-              VITE_SUPABASE_URL: supabaseUrl,
-              VITE_SUPABASE_PUBLISHABLE_KEY: supabaseAnonKey,
-              VITE_SUPABASE_ANON_KEY: supabaseAnonKey,
-              VITE_APP_URL: env.VITE_APP_URL || '',
-              MIDTRANS_CLIENT_KEY: env.MIDTRANS_CLIENT_KEY || env.VITE_MIDTRANS_CLIENT_KEY || '',
-              VITE_MIDTRANS_CLIENT_KEY: env.VITE_MIDTRANS_CLIENT_KEY || env.MIDTRANS_CLIENT_KEY || '',
-              MIDTRANS_IS_PRODUCTION: env.MIDTRANS_IS_PRODUCTION || env.VITE_MIDTRANS_IS_PRODUCTION || 'false',
-              VITE_MIDTRANS_IS_PRODUCTION: env.VITE_MIDTRANS_IS_PRODUCTION || env.MIDTRANS_IS_PRODUCTION || 'false',
-            })};</script>`;
+        try {
+          const html = await assetResponse.text();
+          const configScript = `<script id="__CLOUDFLARE_RUNTIME_CONFIG__">window.__CLOUDFLARE_ENV__=${JSON.stringify({
+            VITE_SUPABASE_URL: supabaseUrl || '',
+            SUPABASE_URL: supabaseUrl || '',
+            VITE_SUPABASE_PUBLISHABLE_KEY: supabaseAnonKey || '',
+            VITE_SUPABASE_ANON_KEY: supabaseAnonKey || '',
+            SUPABASE_ANON_KEY: supabaseAnonKey || '',
+            VITE_APP_URL: env.VITE_APP_URL || '',
+            MIDTRANS_CLIENT_KEY: env.MIDTRANS_CLIENT_KEY || env.VITE_MIDTRANS_CLIENT_KEY || '',
+            VITE_MIDTRANS_CLIENT_KEY: env.VITE_MIDTRANS_CLIENT_KEY || env.MIDTRANS_CLIENT_KEY || '',
+            MIDTRANS_IS_PRODUCTION: env.MIDTRANS_IS_PRODUCTION || env.VITE_MIDTRANS_IS_PRODUCTION || 'false',
+            VITE_MIDTRANS_IS_PRODUCTION: env.VITE_MIDTRANS_IS_PRODUCTION || env.MIDTRANS_IS_PRODUCTION || 'false',
+          })};</script>`;
 
-            const modifiedHtml = html.includes('</head>')
-              ? html.replace('</head>', `${configScript}</head>`)
-              : configScript + html;
+          const modifiedHtml = html.includes('</head>')
+            ? html.replace('</head>', `${configScript}</head>`)
+            : configScript + html;
 
-            const newHeaders = new Headers(assetResponse.headers);
-            newHeaders.set('cache-control', 'no-cache, must-revalidate');
+          const newHeaders = new Headers(assetResponse.headers);
+          newHeaders.set('content-type', 'text/html; charset=utf-8');
+          newHeaders.set('cache-control', 'no-cache, no-store, must-revalidate');
 
-            return new Response(modifiedHtml, {
-              status: assetResponse.status,
-              headers: newHeaders,
-            });
-          } catch (_) {
-            return assetResponse;
-          }
+          return new Response(modifiedHtml, {
+            status: assetResponse.status,
+            headers: newHeaders,
+          });
+        } catch (_) {
+          return assetResponse;
         }
       }
 

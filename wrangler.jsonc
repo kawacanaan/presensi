@@ -1,8 +1,10 @@
 {
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "presensi",
   "main": "src/worker.ts",
   "compatibility_date": "2026-10-06",
   "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS"
