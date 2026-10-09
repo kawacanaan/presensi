@@ -255,9 +255,6 @@ export interface SchoolProfile {
   kelas?: string;
   namaWaliKelas?: string;
   nipWaliKelas?: string;
-  // Titik Koordinat GPS Sekolah untuk Geofencing Anti-Titip Absen
-  latitude?: number;
-  longitude?: number;
 }
 
 export interface AcademicEvent {
@@ -289,9 +286,6 @@ export interface SystemConfig {
   checkInDeadlineTime: string; // Batas jam masuk tepat waktu (misal "07:00")
   checkOutStartTime: string; // Jam buka presensi pulang (misal "12:30")
   autoMarkLate: boolean; // Tandai otomatis (Terlambat) jika lewat batas jam masuk
-  // Pengaturan Anti-Titip Absen & Geofencing GPS
-  geofenceEnabled?: boolean; // Aktifkan validasi radius lokasi GPS
-  radiusMeters?: number; // Radius toleransi presensi di area sekolah (default 200m)
 }
 
 // ---------- Super Admin Pro: Role & Izin, Monitoring, Pengaturan Global, Audit ----------

@@ -184,6 +184,12 @@ export default async function handler(req: any, res: any, env?: any) {
     return json(res, result.ok ? 200 : 400, result);
   }
 
+  // 4. SEND LEAVE REQUEST DECISION NOTIFICATION (IZIN & SAKIT)
+  if (action === 'send_leave_decision') {
+    const result = await sendLeaveDecisionPushToStudent(body);
+    return json(res, result.ok ? 200 : 400, result);
+  }
+
   return json(res, 400, { error: 'Aksi tidak dikenali.' });
 }
 
@@ -296,6 +302,103 @@ export async function sendAttendancePushToStudent(params: {
     totalDevices: devices.length,
     eventType: type,
     message: `Notifikasi presensi ${type} berhasil dikirim ke ${successCount} perangkat.`,
+  };
+}
+
+/**
+ * Fungsi internal server-side untuk mengirimkan notifikasi keputusan izin sakit ke ponsel orang tua
+ */
+export async function sendLeaveDecisionPushToStudent(params: {
+  studentId: string;
+  studentName?: string;
+  leaveType: 'sakit' | 'izin' | string;
+  decision: 'APPROVED' | 'REJECTED' | string;
+  datesText?: string;
+  reviewerName?: string;
+  notes?: string;
+}): Promise<{
+  ok: boolean;
+  sentCount: number;
+  failedCount: number;
+  totalDevices: number;
+  message: string;
+}> {
+  const { studentId, studentName, leaveType, decision, datesText, reviewerName, notes } = params;
+  if (!studentId) {
+    return {
+      ok: false,
+      sentCount: 0,
+      failedCount: 0,
+      totalDevices: 0,
+      message: 'studentId wajib disertakan.',
+    };
+  }
+
+  const sName = String(studentName || 'Ananda').trim();
+  const typeLabel = leaveType === 'sakit' ? 'Sakit' : 'Izin';
+  const isApproved = decision === 'APPROVED';
+
+  const title = isApproved
+    ? `Izin ${typeLabel} Disetujui — ${sName} ✅`
+    : `Izin ${typeLabel} Ditolak — ${sName} ⚠️`;
+
+  const dateInfo = datesText ? ` (${datesText})` : '';
+  const reviewer = reviewerName || 'Wali Kelas';
+
+  const bodyText = isApproved
+    ? `Pengajuan ${typeLabel}${dateInfo} untuk Ananda ${sName} telah DISETUJUI oleh ${reviewer}. Catatan kehadiran telah otomatis diperbarui.`
+    : `Pengajuan ${typeLabel}${dateInfo} untuk Ananda ${sName} DITOLAK oleh ${reviewer}.${notes ? ` Catatan: ${notes}` : ''}`;
+
+  const payload = JSON.stringify({
+    title,
+    body: bodyText,
+    icon: '/pwa-192.png',
+    badge: '/favicon.png',
+    tag: `leave-decision-${studentId}-${Date.now()}`,
+    url: '/',
+    studentId,
+    decision,
+    timestamp: Date.now(),
+  });
+
+  const devices = await getSubscriptionsForStudent(studentId);
+  let successCount = 0;
+  let failedCount = 0;
+  const expiredEndpoints: string[] = [];
+
+  await Promise.all(
+    devices.map(async (dev) => {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: dev.endpoint,
+            keys: {
+              p256dh: dev.p256dh,
+              auth: dev.auth,
+            },
+          },
+          payload
+        );
+        successCount++;
+      } catch (sendErr: any) {
+        failedCount++;
+        if (sendErr?.statusCode === 410 || sendErr?.statusCode === 404) {
+          expiredEndpoints.push(dev.endpoint);
+        }
+      }
+    })
+  );
+
+  if (expiredEndpoints.length > 0) {
+    await removeExpiredEndpoints(studentId, expiredEndpoints);
+  }
+
+  return {
+    ok: true,
+    sentCount: successCount,
+    failedCount,
+    totalDevices: devices.length,
+    message: `Notifikasi persetujuan izin berhasil dikirim ke ${successCount} perangkat.`,
   };
 }
 

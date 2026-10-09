@@ -33,7 +33,7 @@ import { getServerNow, formatServerTimeString, formatServerDateString, syncServe
 import { isUserInActiveSchoolPlan } from "../utils/tenantLifecycle";
 import { normalizePlan, normalizeWorkspaceType } from "../utils/packageSystem";
 import { normalizeClassToken } from "../utils/documentParser";
-import { triggerAttendancePushNotification } from "../utils/webPushManager";
+import { triggerAttendancePushNotification, triggerLeaveDecisionPushNotification } from "../utils/webPushManager";
 
 interface Toast {
   id: string;
@@ -8383,6 +8383,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       } catch (apiErr) {
         console.warn("[updateLeaveRequestStatus] API error, relying on local & supabase update:", apiErr);
       }
+
+      // 4. Memicu Web Push Notification keputusan persetujuan izin ke HP Orang Tua
+      const datesLabel = targetReq.startDate === targetReq.endDate || !targetReq.endDate
+        ? targetReq.startDate
+        : `${targetReq.startDate} s.d ${targetReq.endDate}`;
+
+      void triggerLeaveDecisionPushNotification({
+        studentId: targetReq.studentId,
+        studentName: targetReq.studentName,
+        leaveType: targetReq.leaveType,
+        decision: status,
+        datesText: datesLabel,
+        reviewerName,
+        notes: resolvedNotes,
+      });
 
       if (status === "APPROVED") {
         // Auto mark attendance for that student across the date range

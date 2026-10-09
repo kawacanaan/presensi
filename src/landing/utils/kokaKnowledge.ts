@@ -54,7 +54,7 @@ const IN_SCOPE_KEYWORDS = [
   'kawacanaan', 'kawa', 'koka', 'presensi', 'absensi', 'absen', 'kehadiran',
   'guru', 'wali kelas', 'mapel', 'mata pelajaran', 'kepala sekolah', 'kepsek', 'sekolah', 'sd',
   'siswa', 'murid', 'kelas', 'rombel', 'ruang kerja', 'workspace',
-  'qr', 'barcode', 'scan', 'gps', 'radius', 'lokasi', 'geofencing',
+  'qr', 'barcode', 'scan', 'kode qr', 'presensi qr',
   'hari efektif', 'kalender', 'kedinasan', 'format kedinasan', 'rapor', 'rekap', 'laporan', 'excel', 'pdf',
   'harga', 'biaya', 'paket', 'langganan', 'tarif', 'bayar', 'gratis', 'free', 'trial',
   'daftar', 'mendaftar', 'registrasi', 'login', 'masuk', 'portal', 'coba', 'mencoba',
@@ -119,7 +119,7 @@ export function getKokaLandingResponse(
         };
       }
       return {
-        text: 'Yang sedang Bapak/Ibu lihat di layar adalah bagian **Fitur Utama KawaCanaan Presensi SD** 😊 Di bagian ini ditampilkan sistem Dual-Mode Presensi, validasi QR dinamis dengan radius GPS gerbang sekolah, penghitungan hari belajar efektif otomatis, hingga cetak rekap format kedinasan.',
+        text: 'Yang sedang Bapak/Ibu lihat di layar adalah bagian **Fitur Utama KawaCanaan Presensi SD** 😊 Di bagian ini ditampilkan sistem Dual-Mode Presensi, validasi QR dinamis otomatis, penghitungan hari belajar efektif otomatis, hingga cetak rekap format kedinasan.',
         category: 'dynamic_section',
         suggestions: [],
       };
@@ -246,7 +246,7 @@ export function getKokaLandingResponse(
   // Pertanyaan lanjutan: "kalau untuk sekolah bagaimana?", "untuk kepala sekolah?"
   if (/^(kalau\s*)?(untuk|bagi)\s*(sekolah|kepala\s*sekolah|kepsek)(\s*bagaimana|\s*gimana)?$/i.test(qLower)) {
     return {
-      text: 'Bagi pihak Sekolah dan Kepala Sekolah, KawaCanaan memberikan manfaat strategis:\n\n• **Data Real-Time**: Memantau rekapitulasi kehadiran seluruh kelas 1–6 dalam satu layar dasbor.\n• **Cegah Titip Absen**: Didukung validasi QR dinamis dan radius GPS gerbang sekolah.\n• **Standar Format Kedinasan**: Laporan resmi A4 siap cetak bertanda tangan untuk keperluan akreditasi dan arsip instansi kedinasan.',
+      text: 'Bagi pihak Sekolah dan Kepala Sekolah, KawaCanaan memberikan manfaat strategis:\n\n• **Data Real-Time**: Memantau rekapitulasi kehadiran seluruh kelas 1–6 dalam satu layar dasbor.\n• **Cegah Titip Absen**: Didukung validasi QR dinamis terpadu.\n• **Standar Format Kedinasan**: Laporan resmi A4 siap cetak bertanda tangan untuk keperluan akreditasi dan arsip instansi kedinasan.',
       category: 'benefits_school',
       suggestions: [],
     };
@@ -321,15 +321,15 @@ export function getKokaLandingResponse(
   if (/bagaimana\s*cara\s*kerjanya|cara\s*kerja|alur\s*presensi|langkah\s*kerja/i.test(qLower)) {
     if (lang === 'EN') {
       return {
-        text: "KawaCanaan works seamlessly in **3 easy steps**:\n\n1. **Setup School & Classes**: Register your school and Grade 1-6 cohorts (takes less than 2 minutes, free plan available).\n2. **Daily & Subject Attendance**: Students check in via dynamic QR code with GPS geofencing, or teachers check off attendance directly on their mobile/laptop.\n3. **Automated Reports**: Attendance percentages, sick leave, and unexcused counts calculate automatically and are instantly ready to export to Excel or official printable PDF.",
+        text: "KawaCanaan works seamlessly in **3 easy steps**:\n\n1. **Setup School & Classes**: Register your school and Grade 1-6 cohorts (takes less than 2 minutes, free plan available).\n2. **Daily & Subject Attendance**: Students check in via dynamic QR code, or teachers check off attendance directly on their mobile/laptop.\n3. **Automated Reports**: Attendance percentages, sick leave, and unexcused counts calculate automatically and are instantly ready to export to Excel or official printable PDF.",
         category: 'how_it_works',
         suggestions: [],
       };
     }
     return {
-      text: "Cara kerja KawaCanaan sangat mudah dan ramah guru dalam **3 langkah praktis**:\n\n1. **Daftar & Siapkan Kelas**: Bapak/Ibu membuat akun dan menyiapkan rombel kelas 1–6 (bisa langsung dicoba gratis tanpa kartu kredit).\n2. **Lakukan Presensi**: Presensi bisa dilakukan via scan QR Code dinamis dan validasi radius GPS sekolah, atau guru mencentang langsung daftar kehadiran di kelas lewat HP/laptop.\n3. **Rekap Otomatis**: Kehadiran otomatis terhitung (persentase, sakit, izin, alfa), siap diunduh ke Excel maupun dicetak ke lembar PDF format kedinasan.",
-      category: 'how_it_works',
-      suggestions: [],
+      text: "Cara kerja KawaCanaan sangat mudah dan ramah guru dalam **3 langkah praktis**:\n\n1. **Daftar & Siapkan Kelas**: Bapak/Ibu membuat akun dan menyiapkan rombel kelas 1–6 (bisa langsung dicoba gratis tanpa kartu kredit).\n2. **Lakukan Presensi**: Presensi bisa dilakukan via scan QR Code dinamis otomatis, atau guru mencentang langsung daftar kehadiran di kelas lewat HP/laptop.\n3. **Rekap Otomatis**: Kehadiran otomatis terhitung (persentase, sakit, izin, alfa), siap diunduh ke Excel maupun dicetak ke lembar PDF format kedinasan.",
+        category: 'how_it_works',
+        suggestions: [],
     };
   }
 
@@ -338,7 +338,7 @@ export function getKokaLandingResponse(
   // -------------------------------------------------------------
   if (/apa\s*saja\s*fiturnya|fitur|fitur\s*utama|kemampuan|keunggulan/i.test(qLower)) {
     return {
-      text: "KawaCanaan memiliki beragam fitur unggulan yang dirancang khusus untuk SD:\n\n• **Dual-Mode Presensi SD**: Presensi harian oleh Wali Kelas dan presensi per jam mata pelajaran khusus (PJOK & Agama).\n• **QR Code Dinamis & Geofencing GPS**: Mencegah titip absen karena QR terus berganti dan divalidasi dengan radius lokasi gerbang sekolah.\n• **Penghitungan Otomatis Hari Belajar Efektif**: Kalender akademik otomatis menghitung hari efektif per bulan dan semester.\n• **Portal Siswa & Wali Murid**: Orang tua dapat memantau status kehadiran anak dan mengajukan surat izin sakit online.\n• **Cetak Rekap Format Kedinasan**: Lembar presensi rapi siap cetak PDF dengan kop sekolah dan ekspor spreadsheet Excel.\n• **Multi-Workspace Fleksibel**: Pilihan Ruang Kerja Sekolah terpadu atau Ruang Kerja Individu.",
+      text: "KawaCanaan memiliki beragam fitur unggulan yang dirancang khusus untuk SD:\n\n• **Dual-Mode Presensi SD**: Presensi harian oleh Wali Kelas dan presensi per jam mata pelajaran khusus (PJOK & Agama).\n• **QR Code Dinamis Otomatis**: Mencegah titip absen karena kode QR terus diperbarui secara berkala.\n• **Penghitungan Otomatis Hari Belajar Efektif**: Kalender akademik otomatis menghitung hari efektif per bulan dan semester.\n• **Portal Siswa & Wali Murid**: Orang tua dapat memantau status kehadiran anak dan mengajukan surat izin sakit online.\n• **Cetak Rekap Format Kedinasan**: Lembar presensi rapi siap cetak PDF dengan kop sekolah dan ekspor spreadsheet Excel.\n• **Multi-Workspace Fleksibel**: Pilihan Ruang Kerja Sekolah terpadu atau Ruang Kerja Individu.",
       category: 'features',
       suggestions: [],
     };

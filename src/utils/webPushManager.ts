@@ -317,3 +317,45 @@ export async function triggerAttendancePushNotification({
     console.warn('[Push] Gagal memicu push notification:', err);
   }
 }
+
+/**
+ * Memicu Web Push Notification keputusan persetujuan izin/sakit ke HP Orang Tua
+ */
+export async function triggerLeaveDecisionPushNotification({
+  studentId,
+  studentName,
+  leaveType,
+  decision,
+  datesText,
+  reviewerName,
+  notes,
+}: {
+  studentId: string;
+  studentName: string;
+  leaveType: 'sakit' | 'izin' | string;
+  decision: 'APPROVED' | 'REJECTED';
+  datesText?: string;
+  reviewerName?: string;
+  notes?: string;
+}): Promise<void> {
+  if (!studentId) return;
+
+  try {
+    await fetch('/api/push-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'send_leave_decision',
+        studentId,
+        studentName,
+        leaveType,
+        decision,
+        datesText,
+        reviewerName,
+        notes,
+      }),
+    });
+  } catch (err) {
+    console.warn('[Push] Gagal memicu notifikasi keputusan izin:', err);
+  }
+}

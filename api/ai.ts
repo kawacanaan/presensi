@@ -26,7 +26,7 @@ PENGETAHUAN PRODUK LENGKAP KAWACANAAN PRESENSI:
    Sistem presensi digital terpadu khusus Sekolah Dasar (SD) yang praktis, tertib, dan akurat demi stabilitas administrasi sekolah. Menggantikan buku absensi kertas manual dan menghemat waktu rekapitulasi hingga 90%.
 2. Fitur Utama:
    - Dual-Mode Presensi SD: Presensi harian oleh Wali Kelas dan presensi per jam mata pelajaran khusus (PJOK & Agama).
-   - Validasi QR Dinamis & Geofencing GPS: Mencegah kecurangan titip absen karena QR diperbarui berkala dan diverifikasi radius gerbang sekolah.
+   - Validasi QR Dinamis: Mencegah kecurangan titip absen karena QR diperbarui berkala secara otomatis.
    - Hari Belajar Efektif Otomatis: Sinkronisasi kalender akademik menghitung hari efektif per bulan & semester ganjil/genap.
    - Portal Siswa & Wali Murid: Orang tua memantau kehadiran secara real-time dan mengajukan izin sakit daring.
    - Rekapitulasi Otomatis & Cetak Format Dinas: Laporan kehadiran (H, S, I, A, T) siap ekspor Excel (.xlsx) atau cetak PDF format resmi kedinasan.
