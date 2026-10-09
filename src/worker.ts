@@ -93,6 +93,33 @@ function resolveRoute(pathname: string): ApiHandler | null {
   return null;
 }
 
+function resolveWorkerSupabaseUrl(env: Env): string {
+  const candidates = [env.SUPABASE_URL, env.VITE_SUPABASE_URL];
+  const sbCo = candidates.find((c) => c && typeof c === 'string' && c.includes('.supabase.co'));
+  if (sbCo) return sbCo.trim();
+  for (const c of candidates) {
+    if (c && typeof c === 'string' && c.trim() && !c.includes('placeholder')) {
+      return c.trim();
+    }
+  }
+  return '';
+}
+
+function resolveWorkerSupabaseAnonKey(env: Env): string {
+  const candidates = [
+    env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    env.VITE_SUPABASE_ANON_KEY,
+    env.SUPABASE_ANON_KEY,
+    env.SUPABASE_PUBLISHABLE_KEY,
+  ];
+  for (const c of candidates) {
+    if (c && typeof c === 'string' && c.trim() && !c.includes('placeholder')) {
+      return c.trim();
+    }
+  }
+  return '';
+}
+
 /**
  * Adapter untuk mengubah Request/Response Cloudflare Worker
  * menjadi format Node/Vercel (req, res) yang diharapkan oleh /api/*.ts.
@@ -107,7 +134,7 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Superadmin-Secret, X-Requested-With, *',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Superadmin-Secret, X-Superadmin-Key, X-Requested-With, *',
         'Access-Control-Max-Age': '86400',
       },
     });
@@ -115,13 +142,8 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
 
   // 2. Endpoint khusus konfigurasi publik runtime (/api/config)
   if (url.pathname === '/api/config' || url.pathname === '/api/public-config') {
-    const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL || '';
-    const supabaseAnonKey =
-      env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-      env.VITE_SUPABASE_ANON_KEY ||
-      env.SUPABASE_ANON_KEY ||
-      env.SUPABASE_PUBLISHABLE_KEY ||
-      '';
+    const supabaseUrl = resolveWorkerSupabaseUrl(env);
+    const supabaseAnonKey = resolveWorkerSupabaseAnonKey(env);
     return new Response(
       JSON.stringify({
         ok: true,
@@ -167,10 +189,11 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
     query[key] = val;
   });
 
-  // 6. Parse headers
+  // 6. Parse headers (simpan format lower-case dan original untuk kompatibilitas penuh)
   const headers: Record<string, string> = {};
   request.headers.forEach((val, key) => {
     headers[key.toLowerCase()] = val;
+    headers[key] = val;
   });
 
   // 7. Parse request body
@@ -240,6 +263,11 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
       }
     }
 
+    // 204/205/304 response cannot have a body per fetch spec
+    if (statusCode === 204 || statusCode === 205 || statusCode === 304) {
+      resBody = null;
+    }
+
     // Default CORS headers
     if (!resHeaders.has('access-control-allow-origin')) {
       resHeaders.set('access-control-allow-origin', '*');
@@ -295,8 +323,14 @@ async function handleApiRequest(request: Request, env: Env): Promise<Response> {
   // 10. Jalankan handler dengan menyertakan env langsung
   try {
     const maybePromise = handler(req, res, env);
+    let result: any = null;
     if (maybePromise && typeof maybePromise.then === 'function') {
-      await maybePromise;
+      result = await maybePromise;
+    } else {
+      result = maybePromise;
+    }
+    if (result instanceof Response) {
+      return result;
     }
     if (!isEnded) {
       finishResponse();
@@ -350,13 +384,8 @@ export default {
         (contentType.includes('text/html') || url.pathname === '/' || url.pathname.endsWith('.html')) &&
         assetResponse.ok
       ) {
-        const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL || '';
-        const supabaseAnonKey =
-          env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-          env.VITE_SUPABASE_ANON_KEY ||
-          env.SUPABASE_ANON_KEY ||
-          env.SUPABASE_PUBLISHABLE_KEY ||
-          '';
+        const supabaseUrl = resolveWorkerSupabaseUrl(env);
+        const supabaseAnonKey = resolveWorkerSupabaseAnonKey(env);
 
         if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
           try {
