@@ -1,10 +1,21 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+const CONFIG_CACHE_KEY = 'kawacanaan_cached_supabase_config';
+
 export function getClientSupabaseConfig() {
   const win = typeof window !== 'undefined' ? (window as any) : {};
   const cfEnv = win.__CLOUDFLARE_ENV__ || win.__ENV__ || {};
 
-  // 1. PRIORITAS TERTINGGI: Nilai runtime dari Cloudflare Worker (Dashboard)
+  // 0. MEMORY CACHE (jika sudah diset secara runtime di window)
+  if (win.__DYNAMIC_SUPABASE_URL__ && win.__DYNAMIC_SUPABASE_ANON_KEY__) {
+    const dUrl = String(win.__DYNAMIC_SUPABASE_URL__).trim();
+    const dKey = String(win.__DYNAMIC_SUPABASE_ANON_KEY__).trim();
+    if (dUrl && dKey && !dUrl.includes('placeholder')) {
+      return { url: dUrl, key: dKey };
+    }
+  }
+
+  // 1. PRIORITAS TERTINGGI: Nilai runtime dari Cloudflare Worker (Dashboard via __CLOUDFLARE_ENV__)
   const runtimeUrlCandidates = [
     cfEnv.VITE_SUPABASE_URL,
     cfEnv.SUPABASE_URL,
@@ -15,6 +26,19 @@ export function getClientSupabaseConfig() {
       url = c.trim();
       break;
     }
+  }
+
+  // 1.5 PERSISTENT LOCALSTORAGE CACHE (jika sebelumnya sudah pernah disinkronkan dari /api/config)
+  if (!url && typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem(CONFIG_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.url && typeof parsed.url === 'string' && !parsed.url.includes('placeholder')) {
+          url = parsed.url.trim();
+        }
+      }
+    } catch (_) {}
   }
 
   // 2. FALLBACK HANYA JIKA RUNTIME BELUM TERSEDIA: Build-time import.meta.env
@@ -43,6 +67,19 @@ export function getClientSupabaseConfig() {
       key = k.trim();
       break;
     }
+  }
+
+  // 1.5 PERSISTENT LOCALSTORAGE CACHE KEY
+  if (!key && typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem(CONFIG_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.key && typeof parsed.key === 'string' && !parsed.key.includes('placeholder') && parsed.key !== 'your-anon-key') {
+          key = parsed.key.trim();
+        }
+      }
+    } catch (_) {}
   }
 
   // 2. FALLBACK: Build-time import.meta.env
@@ -80,16 +117,43 @@ function createInstance(url: string, key: string): SupabaseClient {
   );
 }
 
-export let supabase: SupabaseClient = createInstance(supabaseUrl, supabaseAnonKey);
+let activeInstance: SupabaseClient = createInstance(supabaseUrl, supabaseAnonKey);
+
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const val = (activeInstance as any)[prop];
+    if (typeof val === 'function') {
+      return val.bind(activeInstance);
+    }
+    return val;
+  },
+});
 
 export function reconfigureSupabase(url: string, key: string) {
   if (!url || !key || url.includes('placeholder')) return;
-  supabaseUrl = url;
-  supabaseAnonKey = key;
-  supabase = createInstance(url, key);
+  supabaseUrl = url.trim();
+  supabaseAnonKey = key.trim();
+
   if (typeof window !== 'undefined') {
-    (window as any).__KAWACANAAN_SUPABASE__ = supabase;
-    window.dispatchEvent(new CustomEvent('kawacanaan-supabase-configured', { detail: { url, key } }));
+    const win = window as any;
+    win.__DYNAMIC_SUPABASE_URL__ = supabaseUrl;
+    win.__DYNAMIC_SUPABASE_ANON_KEY__ = supabaseAnonKey;
+    if (!win.__CLOUDFLARE_ENV__) win.__CLOUDFLARE_ENV__ = {};
+    win.__CLOUDFLARE_ENV__.VITE_SUPABASE_URL = supabaseUrl;
+    win.__CLOUDFLARE_ENV__.SUPABASE_URL = supabaseUrl;
+    win.__CLOUDFLARE_ENV__.VITE_SUPABASE_ANON_KEY = supabaseAnonKey;
+    win.__CLOUDFLARE_ENV__.SUPABASE_ANON_KEY = supabaseAnonKey;
+
+    try {
+      localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify({ url: supabaseUrl, key: supabaseAnonKey }));
+    } catch (_) {}
+  }
+
+  activeInstance = createInstance(supabaseUrl, supabaseAnonKey);
+
+  if (typeof window !== 'undefined') {
+    (window as any).__KAWACANAAN_SUPABASE__ = activeInstance;
+    window.dispatchEvent(new CustomEvent('kawacanaan-supabase-configured', { detail: { url: supabaseUrl, key: supabaseAnonKey } }));
   }
 }
 
@@ -99,7 +163,7 @@ if (typeof window !== 'undefined') {
     .then((r) => r.json())
     .then((data) => {
       if (data?.ok && data.supabaseUrl && data.supabaseAnonKey) {
-        if (!data.supabaseUrl.includes('placeholder') && (data.supabaseUrl !== supabaseUrl || data.supabaseAnonKey !== supabaseAnonKey)) {
+        if (!data.supabaseUrl.includes('placeholder') && (!supabaseUrl || !supabaseAnonKey || data.supabaseUrl !== supabaseUrl || data.supabaseAnonKey !== supabaseAnonKey)) {
           reconfigureSupabase(data.supabaseUrl, data.supabaseAnonKey);
         }
       }

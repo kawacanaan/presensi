@@ -3431,9 +3431,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange(handleAuthEvent);
+
+    const handleSupabaseConfigured = () => {
+      if (!mounted || isLoggingOutRef.current) return;
+      supabase.auth.getSession().then(({ data }) => {
+        if (!mounted || isLoggingOutRef.current) return;
+        if (data?.session?.user) {
+          loadData(data.session.user.id);
+        }
+      }).catch(() => {});
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("kawacanaan-supabase-configured", handleSupabaseConfigured);
+    }
+
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("kawacanaan-supabase-configured", handleSupabaseConfigured);
+      }
     };
   }, []);
 

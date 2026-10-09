@@ -1,16 +1,18 @@
-import { supabase, usernameToEmail, getClientSupabaseConfig } from './supabase';
+import { supabase, usernameToEmail, getClientSupabaseConfig, supabaseUrl, supabaseAnonKey } from './supabase';
 
 export { supabase };
 
 export const isSupabaseConfigured = () => {
   const { url, key } = getClientSupabaseConfig();
+  const effectiveUrl = url || supabaseUrl;
+  const effectiveKey = key || supabaseAnonKey;
   return Boolean(
-    url &&
-    key &&
-    !url.includes('your-project-id') &&
-    !url.includes('placeholder') &&
-    key !== 'your-anon-key' &&
-    key !== 'placeholder-anon-key'
+    effectiveUrl &&
+    effectiveKey &&
+    !effectiveUrl.includes('your-project-id') &&
+    !effectiveUrl.includes('placeholder') &&
+    effectiveKey !== 'your-anon-key' &&
+    effectiveKey !== 'placeholder-anon-key'
   );
 };
 
