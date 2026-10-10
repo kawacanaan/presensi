@@ -511,6 +511,7 @@ export default async function handler(req: any, res: any, env?: any) {
       const clientKey = dbMidtrans.client_key?.trim() || process.env.MIDTRANS_CLIENT_KEY?.trim() || process.env.VITE_MIDTRANS_CLIENT_KEY?.trim() || '';
       const serverKey = dbMidtrans.server_key?.trim() || process.env.MIDTRANS_SERVER_KEY?.trim() || '';
       const merchantId = dbMidtrans.merchant_id?.trim() || process.env.MIDTRANS_MERCHANT_ID?.trim() || '';
+      const paymentLinkTeacher = dbMidtrans.payment_link_teacher?.trim() || dbMidtrans.guru_payment_link?.trim() || '';
       const isProduction = resolveIsProduction(dbMidtrans);
       const enabled = dbMidtrans.enabled !== undefined ? Boolean(dbMidtrans.enabled) : Boolean(clientKey && serverKey);
       const endpoints = getMidtransEndpoints(isProduction);
@@ -523,6 +524,7 @@ export default async function handler(req: any, res: any, env?: any) {
           is_production: isProduction,
           merchant_id: merchantId,
           enabled,
+          payment_link_teacher: paymentLinkTeacher,
           fee_bearer: dbMidtrans.fee_bearer || 'tenant',
           channels: dbMidtrans.channels || null,
           is_server_key_configured: Boolean(serverKey && serverKey.length > 0),
@@ -533,6 +535,7 @@ export default async function handler(req: any, res: any, env?: any) {
             is_production: isProduction,
             merchant_id: merchantId,
             enabled,
+            payment_link_teacher: paymentLinkTeacher,
             fee_bearer: dbMidtrans.fee_bearer || 'tenant',
             channels: dbMidtrans.channels || null,
             is_server_key_configured: Boolean(serverKey && serverKey.length > 0),
@@ -556,6 +559,9 @@ export default async function handler(req: any, res: any, env?: any) {
         server_key: finalServerKey,
         is_production: targetIsProd,
         merchant_id: midtransData.merchant_id !== undefined ? midtransData.merchant_id.trim() : merchantId,
+        payment_link_teacher: midtransData.payment_link_teacher !== undefined
+          ? midtransData.payment_link_teacher.trim()
+          : (midtransData.guru_payment_link !== undefined ? midtransData.guru_payment_link.trim() : paymentLinkTeacher),
         enabled: midtransData.enabled !== undefined ? Boolean(midtransData.enabled) : enabled,
         fee_bearer: midtransData.fee_bearer || dbMidtrans.fee_bearer || 'tenant',
         channels: midtransData.channels !== undefined ? midtransData.channels : (dbMidtrans.channels || null),
@@ -595,6 +601,7 @@ export default async function handler(req: any, res: any, env?: any) {
         client_key: updatedMidtransConfig.client_key,
         is_production: updatedMidtransConfig.is_production,
         merchant_id: updatedMidtransConfig.merchant_id,
+        payment_link_teacher: updatedMidtransConfig.payment_link_teacher,
         enabled: updatedMidtransConfig.enabled,
         fee_bearer: updatedMidtransConfig.fee_bearer,
         channels: updatedMidtransConfig.channels,
@@ -605,6 +612,7 @@ export default async function handler(req: any, res: any, env?: any) {
           client_key: updatedMidtransConfig.client_key,
           is_production: updatedMidtransConfig.is_production,
           merchant_id: updatedMidtransConfig.merchant_id,
+          payment_link_teacher: updatedMidtransConfig.payment_link_teacher,
           enabled: updatedMidtransConfig.enabled,
           fee_bearer: updatedMidtransConfig.fee_bearer,
           channels: updatedMidtransConfig.channels,

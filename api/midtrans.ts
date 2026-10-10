@@ -10,6 +10,7 @@ interface MidtransConfig {
   server_key: string;
   is_production: boolean;
   merchant_id?: string;
+  payment_link_teacher?: string;
   enabled: boolean;
 }
 
@@ -237,6 +238,11 @@ async function getMidtransConfig(db: any): Promise<MidtransConfig> {
     process.env.MIDTRANS_MERCHANT_ID?.trim() ||
     '';
 
+  const paymentLinkTeacher =
+    dbConfig?.payment_link_teacher?.trim() ||
+    dbConfig?.guru_payment_link?.trim() ||
+    '';
+
   const enabled =
     dbConfig?.enabled !== undefined
       ? Boolean(dbConfig.enabled)
@@ -247,6 +253,7 @@ async function getMidtransConfig(db: any): Promise<MidtransConfig> {
     server_key: serverKey,
     is_production: isProd,
     merchant_id: merchantId,
+    payment_link_teacher: paymentLinkTeacher,
     enabled,
   };
 }
@@ -289,6 +296,7 @@ export default async function handler(req: any, res: any, env?: any) {
     let isProd = resolveIsProduction();
     let isConfigured = Boolean(clientKey && serverKey);
     let enabled = isConfigured;
+    let paymentLinkTeacher = '';
 
     if (url && key) {
       try {
@@ -299,6 +307,7 @@ export default async function handler(req: any, res: any, env?: any) {
         isProd = midtrans.is_production;
         isConfigured = Boolean(clientKey && serverKey);
         enabled = midtrans.enabled && isConfigured;
+        paymentLinkTeacher = midtrans.payment_link_teacher || '';
       } catch (_) {}
     }
 
@@ -311,6 +320,7 @@ export default async function handler(req: any, res: any, env?: any) {
       enabled,
       is_configured: isConfigured,
       snap_url: endpoints.snapJsUrl,
+      payment_link_teacher: paymentLinkTeacher,
     });
   }
 
@@ -593,6 +603,145 @@ export default async function handler(req: any, res: any, env?: any) {
           });
         }
       }
+    } else if (isSuccess) {
+      // ------------------------------------------------------------------------
+      // TRANSAKSI DARI MIDTRANS PAYMENT LINK RESMI (order_id baru dari link)
+      // ------------------------------------------------------------------------
+      const verifiedGross = Number(gross_amount || 0);
+      if (verifiedGross >= 1) {
+        // Ambil data pembayar dari notifikasi webhook Midtrans
+        const payerEmail = String(
+          b.customer_details?.email ||
+          b.email ||
+          b.custom_field1 ||
+          ''
+        ).trim().toLowerCase();
+
+        const payerName = String(
+          b.customer_details?.first_name ||
+          b.customer_details?.name ||
+          b.customer_name ||
+          'Wali Kelas / Guru'
+        ).trim();
+
+        // Cari profile guru / ruang kerja berdasarkan email pembayar
+        let matchedSchoolId: string | null = null;
+        let matchedUserProf: any = null;
+
+        if (payerEmail) {
+          const { data: prof } = await db
+            .from('profiles')
+            .select('id, name, school_id, role, subscription_plan, subscription_expires_at')
+            .ilike('email', payerEmail)
+            .maybeSingle();
+
+          if (prof && prof.school_id) {
+            matchedUserProf = prof;
+            matchedSchoolId = prof.school_id;
+          }
+        }
+
+        if (matchedSchoolId) {
+          const { data: school } = await db
+            .from('schools')
+            .select('*')
+            .eq('id', matchedSchoolId)
+            .maybeSingle();
+
+          if (school) {
+            const targetPlan = 'guru_pro';
+            const { durationMonths, durationDays, newExpiry } = calculateNewExpiry(
+              targetPlan,
+              verifiedGross,
+              school.subscription_expires_at,
+              school.plan
+            );
+
+            if (newExpiry) {
+              const isSubject = (matchedUserProf?.role || '').toUpperCase().trim() === 'GURU MAPEL';
+              await db
+                .from('schools')
+                .update({
+                  status: 'active',
+                  plan: targetPlan,
+                  subscription_expires_at: newExpiry.toISOString(),
+                  max_teachers: 1,
+                  max_students: isSubject ? 300 : 50,
+                  max_classes: isSubject ? 6 : 1,
+                })
+                .eq('id', school.id);
+
+              await db
+                .from('profiles')
+                .update({
+                  subscription_plan: targetPlan,
+                  subscription_status: 'active',
+                  subscription_expires_at: newExpiry.toISOString(),
+                })
+                .eq('school_id', school.id);
+
+              // Catat transaksi resmi ke tabel payments dengan status SETTLED
+              await db.from('payments').upsert(
+                {
+                  invoice_no: order_id,
+                  school_id: school.id,
+                  plan_name: `Dukungan Paket Guru (${durationMonths} Bulan - Payment Link Midtrans)`,
+                  amount: verifiedGross,
+                  unique_code: 0,
+                  total_amount: verifiedGross,
+                  status: 'SETTLED',
+                  payment_method: payment_type || 'MIDTRANS_PAYMENT_LINK',
+                  school_name: school.name || 'Ruang Kerja Guru',
+                  contact_name: payerName,
+                  email: payerEmail || null,
+                  created_at: new Date().toISOString(),
+                  paid_at: new Date().toISOString(),
+                  expires_at: newExpiry.toISOString(),
+                },
+                { onConflict: 'invoice_no' }
+              );
+
+              await db.from('audit_logs').insert({
+                school_id: school.id,
+                actor_name: 'Midtrans Payment Link',
+                actor_role: 'SYSTEM',
+                action: 'MIDTRANS_LINK_PAYMENT_SETTLED',
+                details: {
+                  order_id,
+                  gross_amount: verifiedGross,
+                  duration_months: durationMonths,
+                  duration_days: durationDays,
+                  payment_type,
+                  payer_email: payerEmail,
+                  previous_expiry: school.subscription_expires_at,
+                  new_expiry: newExpiry.toISOString(),
+                },
+              });
+            }
+          }
+        } else {
+          // Jika email pembayar belum terdaftar, tetap catat invoice SETTLED agar Superadmin bisa meninjau
+          await db.from('payments').upsert(
+            {
+              invoice_no: order_id,
+              school_id: null,
+              plan_name: 'Dukungan Paket Guru (Payment Link Midtrans)',
+              amount: verifiedGross,
+              unique_code: 0,
+              total_amount: verifiedGross,
+              status: 'SETTLED',
+              payment_method: payment_type || 'MIDTRANS_PAYMENT_LINK',
+              school_name: 'Ruang Kerja Guru',
+              contact_name: payerName,
+              email: payerEmail || null,
+              created_at: new Date().toISOString(),
+              paid_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+            { onConflict: 'invoice_no' }
+          );
+        }
+      }
     }
 
     return json(res, 200, { ok: true, message: 'Notification processed successfully' });
@@ -821,6 +970,7 @@ export default async function handler(req: any, res: any, env?: any) {
         client_key: midtrans.client_key || '',
         is_production: midtrans.is_production,
         snap_url: endpoints.snapJsUrl,
+        payment_link_teacher: midtrans.payment_link_teacher || '',
         is_simulation: true,
         notice: 'Kredensial Midtrans belum diset di Super Admin. Tagihan berhasil dibuat dan dapat diverifikasi langsung oleh Super Admin.',
       });
@@ -911,6 +1061,7 @@ export default async function handler(req: any, res: any, env?: any) {
         client_key: midtrans.client_key,
         is_production: midtrans.is_production,
         snap_url: endpoints.snapJsUrl,
+        payment_link_teacher: midtrans.payment_link_teacher || '',
       });
     } catch (err: any) {
       console.error('[Midtrans Request Failed]', err);
@@ -955,6 +1106,43 @@ export default async function handler(req: any, res: any, env?: any) {
         expires_at: latestExpiry,
         message: 'Transaksi sudah LUNAS terverifikasi di sistem.',
       });
+    }
+
+    // Dukungan khusus Payment Link Midtrans: Jika orderId adalah ID sementara link atau orderId belum ada di database,
+    // periksa transaksi berstatus SETTLED terbaru berdasarkan email atau school_id
+    const userEmail = b.email || q.email;
+    const schoolId = b.school_id || q.school_id;
+    if ((!localPayment || String(orderId).startsWith('KWC-LINK-')) && (userEmail || schoolId)) {
+      let pQuery = db.from('payments').select('*').eq('status', 'SETTLED').order('created_at', { ascending: false }).limit(1);
+      if (schoolId) pQuery = pQuery.eq('school_id', schoolId);
+      else if (userEmail) pQuery = pQuery.ilike('email', String(userEmail).trim());
+      const { data: recentSettled } = await pQuery.maybeSingle();
+
+      if (recentSettled) {
+        let latestExpiry: string | null = null;
+        if (recentSettled.school_id) {
+          const { data: sch } = await db.from('schools').select('subscription_expires_at').eq('id', recentSettled.school_id).maybeSingle();
+          latestExpiry = sch?.subscription_expires_at || null;
+        }
+        return json(res, 200, {
+          ok: true,
+          status: 'settlement',
+          is_settled: true,
+          payment: recentSettled,
+          gross_amount: recentSettled.total_amount || recentSettled.amount,
+          expires_at: latestExpiry,
+          message: 'Transaksi berhasil diverifikasi lunas dari Payment Link Midtrans.',
+        });
+      }
+
+      if (String(orderId).startsWith('KWC-LINK-')) {
+        return json(res, 200, {
+          ok: true,
+          status: 'PENDING',
+          is_settled: false,
+          message: 'Menunggu konfirmasi pembayaran dari Midtrans Payment Link.',
+        });
+      }
     }
 
     if (!midtrans.server_key) {

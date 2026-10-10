@@ -124,6 +124,7 @@ export const BillingMethodsTab: React.FC<BillingMethodsTabProps> = ({ call, show
   const [merchantId, setMerchantId] = useState('');
   const [clientKey, setClientKey] = useState('');
   const [serverKey, setServerKey] = useState('');
+  const [paymentLinkTeacher, setPaymentLinkTeacher] = useState('');
   const [hasSavedServerKey, setHasSavedServerKey] = useState(false);
   const [showServerKey, setShowServerKey] = useState(false);
   const [feeBearer, setFeeBearer] = useState<'tenant' | 'platform'>('tenant');
@@ -154,6 +155,9 @@ export const BillingMethodsTab: React.FC<BillingMethodsTabProps> = ({ call, show
           }
           if (cfg.is_production !== undefined) {
             setEnvironment(Boolean(cfg.is_production) ? 'production' : 'sandbox');
+          }
+          if (cfg.payment_link_teacher !== undefined && cfg.payment_link_teacher !== null) {
+            setPaymentLinkTeacher(cfg.payment_link_teacher);
           }
           if (cfg.fee_bearer) {
             setFeeBearer(cfg.fee_bearer);
@@ -215,6 +219,7 @@ export const BillingMethodsTab: React.FC<BillingMethodsTabProps> = ({ call, show
           midtrans: {
             merchant_id: merchantId.trim(),
             client_key: clientKey.trim(),
+            payment_link_teacher: paymentLinkTeacher.trim(),
             is_production: environment === 'production',
             fee_bearer: feeBearer,
             channels,
@@ -230,6 +235,7 @@ export const BillingMethodsTab: React.FC<BillingMethodsTabProps> = ({ call, show
           const cfg = res.midtrans || res;
           if (cfg.merchant_id !== undefined) setMerchantId(cfg.merchant_id);
           if (cfg.client_key !== undefined) setClientKey(cfg.client_key);
+          if (cfg.payment_link_teacher !== undefined) setPaymentLinkTeacher(cfg.payment_link_teacher);
           if (cfg.is_production !== undefined) setEnvironment(cfg.is_production ? 'production' : 'sandbox');
           if (cfg.is_server_key_configured !== undefined) setHasSavedServerKey(Boolean(cfg.is_server_key_configured));
         }
@@ -284,6 +290,62 @@ export const BillingMethodsTab: React.FC<BillingMethodsTabProps> = ({ call, show
               <span>Simpan Perubahan</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Kartu Khusus: Link Pembayaran Midtrans (Paket Guru) */}
+      <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <ExternalLink size={18} className="text-blue-600" />
+              <span>Link Pembayaran Midtrans (Paket Guru)</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Sisipkan URL Payment Link resmi dari Dashboard Midtrans. Ketika guru menekan tombol dukungan di aplikasi, sistem akan langsung membuka link pembayaran ini.
+            </p>
+          </div>
+          {paymentLinkTeacher.trim() ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Link Aktif Digunakan</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-[11px] font-bold shrink-0">
+              <span className="w-2 h-2 rounded-full bg-slate-400" />
+              <span>Mode Snap Pop-up (Default)</span>
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+            <span>URL Payment Link Midtrans</span>
+            <span className="text-[11px] text-slate-400 font-normal">Contoh: https://app.midtrans.com/payment-links/...</span>
+          </label>
+          <div className="relative">
+            <input
+              type="url"
+              value={paymentLinkTeacher}
+              onChange={(e) => setPaymentLinkTeacher(e.target.value)}
+              placeholder="https://app.midtrans.com/payment-links/..."
+              className="w-full pl-3.5 pr-24 py-2.5 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            />
+            {paymentLinkTeacher.trim() && (
+              <a
+                href={paymentLinkTeacher.trim()}
+                target="_blank"
+                rel="noreferrer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+              >
+                <span>Buka Link</span>
+                <ExternalLink size={11} />
+              </a>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            💡 <strong>Petunjuk:</strong> Buat Payment Link di Dashboard Midtrans (bisa dengan opsi <em>Allow Custom Amount / Donasi Bebas</em> atau nominal tetap). Salin tautannya lalu tempelkan di kolom ini dan klik <strong>Simpan Perubahan</strong>. Saat pembayaran diselesaikan via link tersebut, server otomatis memperpanjang lisensi Paket Guru (1 s.d. 12 bulan).
+          </p>
         </div>
       </div>
 

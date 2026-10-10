@@ -57,6 +57,7 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
   const [step, setStep] = useState<'prompt' | 'paying' | 'success'>('prompt');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
+  const [directPaymentLink, setDirectPaymentLink] = useState<string | null>(null);
   const [paymentStatusText, setPaymentStatusText] = useState<string | null>(null);
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const [verifiedExpiresAt, setVerifiedExpiresAt] = useState<string | null>(null);
@@ -84,6 +85,11 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
 
     fetchMidtransClientConfig()
       .then((cfg) => {
+        if (cfg.payment_link_teacher && cfg.payment_link_teacher.trim()) {
+          setDirectPaymentLink(cfg.payment_link_teacher.trim());
+        } else {
+          setDirectPaymentLink(null);
+        }
         loadMidtransSnapScript(cfg);
       })
       .catch(() => {});
@@ -95,9 +101,16 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
       if (!pollingRef.current) {
         pollingRef.current = setInterval(async () => {
           try {
-            const res = await fetch(
-              `/api/midtrans?action=check_status&order_id=${encodeURIComponent(paymentSession.orderId)}`
-            );
+            const schoolId = currentUser?.schoolId || null;
+            const userEmail = currentUser?.email || '';
+            const queryParams = new URLSearchParams({
+              action: 'check_status',
+              order_id: paymentSession.orderId,
+            });
+            if (schoolId) queryParams.set('school_id', schoolId);
+            if (userEmail) queryParams.set('email', userEmail);
+
+            const res = await fetch(`/api/midtrans?${queryParams.toString()}`);
             const data = await res.json();
             if (res.ok && (data.is_settled || data.status === 'settlement' || data.status === 'capture')) {
               handlePaymentSuccess(paymentSession.orderId);
@@ -113,7 +126,7 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
         pollingRef.current = null;
       }
     };
-  }, [step, paymentSession]);
+  }, [step, paymentSession, currentUser]);
 
   if (!isOpen) return null;
 
@@ -153,8 +166,57 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
     setIsSubmitting(true);
     setPaymentStatusText(null);
 
+    // JIKA SUPERADMIN TELAH MENYISIPKAN PAYMENT LINK DARI MIDTRANS:
+    // Langsung buka Payment Link Midtrans di jendela/tab baru tanpa modal nominal
+    if (directPaymentLink) {
+      try {
+        window.open(directPaymentLink, '_blank');
+      } catch (_) {
+        window.location.href = directPaymentLink;
+      }
+
+      const tempOrderId = `KWC-LINK-${Date.now().toString(36).toUpperCase()}`;
+      setPaymentSession({
+        orderId: tempOrderId,
+        snapToken: null,
+        amount: 0,
+        planTitle: 'Dukungan Pengembangan Paket Guru (Midtrans Payment Link)',
+      });
+      setPaymentStatusText(
+        'Tautan pembayaran Midtrans telah dibuka di jendela baru. Silakan selesaikan pembayaran Anda di Midtrans.'
+      );
+      setStep('paying');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const resData = await createTeacherMidtransTransaction();
+
+      // Cek apakah resData juga mengembalikan payment_link_teacher dari server
+      if (resData?.payment_link_teacher && resData.payment_link_teacher.trim()) {
+        const link = resData.payment_link_teacher.trim();
+        setDirectPaymentLink(link);
+        try {
+          window.open(link, '_blank');
+        } catch (_) {
+          window.location.href = link;
+        }
+
+        const tempOrderId = resData.order_id || `KWC-LINK-${Date.now().toString(36).toUpperCase()}`;
+        setPaymentSession({
+          orderId: tempOrderId,
+          snapToken: null,
+          amount: 0,
+          planTitle: 'Dukungan Pengembangan Paket Guru (Midtrans Payment Link)',
+        });
+        setPaymentStatusText(
+          'Tautan pembayaran Midtrans telah dibuka di jendela baru. Silakan selesaikan pembayaran Anda di Midtrans.'
+        );
+        setStep('paying');
+        setIsSubmitting(false);
+        return;
+      }
 
       const session: PaymentSession = {
         orderId: resData.order_id,
@@ -201,7 +263,16 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
       let expiryFromCheck: string | null = null;
       let grossFromCheck = paymentSession?.amount || 5000;
       try {
-        const checkRes = await fetch(`/api/midtrans?action=check_status&order_id=${encodeURIComponent(orderId)}`);
+        const schoolId = currentUser?.schoolId || null;
+        const userEmail = currentUser?.email || '';
+        const queryParams = new URLSearchParams({
+          action: 'check_status',
+          order_id: orderId,
+        });
+        if (schoolId) queryParams.set('school_id', schoolId);
+        if (userEmail) queryParams.set('email', userEmail);
+
+        const checkRes = await fetch(`/api/midtrans?${queryParams.toString()}`);
         const checkData = await checkRes.json();
         if (checkData?.expires_at) {
           expiryFromCheck = checkData.expires_at;
@@ -230,9 +301,16 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
     setPaymentStatusText('Memeriksa status pembayaran ke server Midtrans...');
 
     try {
-      const res = await fetch(
-        `/api/midtrans?action=check_status&order_id=${encodeURIComponent(paymentSession.orderId)}`
-      );
+      const schoolId = currentUser?.schoolId || null;
+      const userEmail = currentUser?.email || '';
+      const queryParams = new URLSearchParams({
+        action: 'check_status',
+        order_id: paymentSession.orderId,
+      });
+      if (schoolId) queryParams.set('school_id', schoolId);
+      if (userEmail) queryParams.set('email', userEmail);
+
+      const res = await fetch(`/api/midtrans?${queryParams.toString()}`);
       const data = await res.json();
 
       if (res.ok && (data.is_settled || data.status === 'settlement' || data.status === 'capture')) {
@@ -240,7 +318,7 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
         await handlePaymentSuccess(paymentSession.orderId);
       } else {
         setPaymentStatusText(
-          `Status pembayaran saat ini: ${data.status || 'PENDING'}. Silakan selesaikan transaksi Anda.`
+          `Status pembayaran saat ini: ${data.status || 'PENDING'}. Silakan selesaikan transaksi Anda di Midtrans.`
         );
       }
     } catch (_) {
@@ -442,7 +520,9 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
               </div>
               <div className="flex justify-between pt-1.5 border-t border-slate-200 text-xs sm:text-sm font-black text-slate-900">
                 <span>Metode Pembayaran:</span>
-                <span className="text-[#1D68F2]">Midtrans (QRIS, VA & E-Wallet)</span>
+                <span className="text-[#1D68F2]">
+                  {directPaymentLink ? 'Midtrans Payment Link' : 'Midtrans (QRIS, VA & E-Wallet)'}
+                </span>
               </div>
             </div>
 
@@ -453,15 +533,27 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
             )}
 
             <div className="space-y-2 pt-1">
-              {paymentSession.snapToken && (
-                <button
-                  type="button"
-                  onClick={() => handleLaunchSnap(paymentSession.snapToken!, paymentSession.orderId)}
+              {directPaymentLink ? (
+                <a
+                  href={directPaymentLink}
+                  target="_blank"
+                  rel="noreferrer"
                   className="w-full py-2.5 px-4 rounded-xl bg-[#1D68F2] hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <ExternalLink size={14} />
-                  <span>Buka Kembali Jendela Midtrans</span>
-                </button>
+                  <span>Buka Kembali Link Pembayaran Midtrans</span>
+                </a>
+              ) : (
+                paymentSession.snapToken && (
+                  <button
+                    type="button"
+                    onClick={() => handleLaunchSnap(paymentSession.snapToken!, paymentSession.orderId)}
+                    className="w-full py-2.5 px-4 rounded-xl bg-[#1D68F2] hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <ExternalLink size={14} />
+                    <span>Buka Kembali Jendela Midtrans</span>
+                  </button>
+                )
               )}
 
               <button

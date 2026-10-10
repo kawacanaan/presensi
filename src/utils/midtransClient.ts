@@ -15,6 +15,7 @@ export interface MidtransClientConfig {
   enabled?: boolean;
   is_configured?: boolean;
   snap_url?: string;
+  payment_link_teacher?: string;
   error?: string;
 }
 
@@ -63,6 +64,7 @@ export async function fetchMidtransClientConfig(forceRefresh = false): Promise<M
           enabled: data.enabled !== undefined ? Boolean(data.enabled) : true,
           is_configured: Boolean(data.is_configured),
           snap_url: data.snap_url || getSnapJsFallbackUrl(Boolean(data.is_production)),
+          payment_link_teacher: data.payment_link_teacher || data.guru_payment_link || '',
         };
         cachedConfig = { data: result, timestamp: Date.now() };
         return result;
