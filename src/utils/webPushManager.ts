@@ -94,6 +94,20 @@ export async function getDevicePushStatus(studentId?: string): Promise<PushDevic
   let isSubscribed = false;
   let activeEndpointSnippet = '';
 
+  const isMuted = studentId && typeof localStorage !== 'undefined'
+    ? localStorage.getItem(`kawacanaan_push_user_muted_${studentId}`) === 'true'
+    : false;
+
+  if (isMuted) {
+    return {
+      isSupported: true,
+      permission,
+      isSubscribed: false,
+      activeEndpointSnippet: '',
+      connectedDevicesCount: 0,
+    };
+  }
+
   try {
     const reg = await navigator.serviceWorker.getRegistration();
     if (reg && 'pushManager' in reg) {
@@ -220,6 +234,7 @@ export async function subscribeParentDevice({
     const body = await res.json().catch(() => ({}));
     if (res.ok && body.ok) {
       try {
+        localStorage.removeItem(`kawacanaan_push_user_muted_${studentId}`);
         localStorage.setItem(`kawacanaan_push_sub_${studentId}`, 'true');
         localStorage.setItem(`kawacanaan_push_parent_name_${studentId}`, parentName);
       } catch (_) {}
@@ -284,6 +299,7 @@ export async function unsubscribeParentDevice(studentId: string): Promise<{ succ
     }
     try {
       localStorage.removeItem(`kawacanaan_push_sub_${studentId}`);
+      localStorage.setItem(`kawacanaan_push_user_muted_${studentId}`, 'true');
     } catch (_) {}
 
     try {
@@ -332,6 +348,12 @@ export function requestAdaptiveNativePushPermission({
     return () => {};
   }
 
+  // Jika pengguna secara sadar mematikan notifikasi, JANGAN PERNAH auto-subscribe!
+  const mutedKey = `kawacanaan_push_user_muted_${studentId}`;
+  if (typeof localStorage !== 'undefined' && localStorage.getItem(mutedKey) === 'true') {
+    return () => {};
+  }
+
   const dismissedKey = `kawacanaan_push_native_dismissed_${studentId}`;
   if (localStorage.getItem(dismissedKey) === 'true') {
     return () => {};
@@ -341,6 +363,10 @@ export function requestAdaptiveNativePushPermission({
 
   const executePermissionAndSubscribe = async () => {
     try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem(mutedKey) === 'true') {
+        return;
+      }
+
       let perm = Notification.permission;
       if (perm !== 'granted') {
         perm = await Notification.requestPermission();
@@ -376,6 +402,9 @@ export function requestAdaptiveNativePushPermission({
 
   // Jika izin notifikasi sudah 'granted', pastikan status lokal & server sinkron
   if (Notification.permission === 'granted') {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(mutedKey) === 'true') {
+      return () => {};
+    }
     const isSubscribedLocally = localStorage.getItem(`kawacanaan_push_sub_${studentId}`) === 'true';
     if (!isSubscribedLocally) {
       void executePermissionAndSubscribe();

@@ -274,27 +274,47 @@ export const PortalSiswaView: React.FC = () => {
     if (!activeStudent?.id) return;
 
     let isMounted = true;
+    const isMuted = localStorage.getItem(`kawacanaan_push_user_muted_${activeStudent.id}`) === 'true';
+
     getDevicePushStatus(activeStudent.id).then((st) => {
-      if (isMounted) setDevicePushActive(st.isSubscribed);
+      if (isMounted) {
+        if (isMuted) {
+          setDevicePushActive(false);
+        } else {
+          setDevicePushActive(st.isSubscribed);
+        }
+      }
     });
+
+    const handleStatusChange = (e: any) => {
+      if (isMounted && e?.detail?.isSubscribed !== undefined) {
+        const stillMuted = localStorage.getItem(`kawacanaan_push_user_muted_${activeStudent.id}`) === 'true';
+        setDevicePushActive(stillMuted ? false : Boolean(e.detail.isSubscribed));
+      }
+    };
+    window.addEventListener('kawacanaan_push_status_changed', handleStatusChange);
+
+    // Jika pengguna secara sadar mematikan notifikasi, JANGAN PERNAH jalankan auto-subscribe!
+    if (isMuted) {
+      return () => {
+        isMounted = false;
+        window.removeEventListener('kawacanaan_push_status_changed', handleStatusChange);
+      };
+    }
 
     const cleanup = requestAdaptiveNativePushPermission({
       studentId: activeStudent.id,
       schoolId: activeStudent.schoolId || schoolProfile?.id || currentUser?.schoolId,
       onSuccess: () => {
         if (isMounted) {
-          setDevicePushActive(true);
-          showToast('Notifikasi kehadiran resmi aktif pada ponsel ini!', 'success');
+          const userMutedNow = localStorage.getItem(`kawacanaan_push_user_muted_${activeStudent.id}`) === 'true';
+          if (!userMutedNow) {
+            setDevicePushActive(true);
+            showToast('Notifikasi kehadiran resmi aktif pada ponsel ini!', 'success');
+          }
         }
       },
     });
-
-    const handleStatusChange = (e: any) => {
-      if (isMounted && e?.detail?.isSubscribed !== undefined) {
-        setDevicePushActive(Boolean(e.detail.isSubscribed));
-      }
-    };
-    window.addEventListener('kawacanaan_push_status_changed', handleStatusChange);
 
     return () => {
       isMounted = false;
@@ -1500,8 +1520,11 @@ export const PortalSiswaView: React.FC = () => {
                       // 1. KASUS JIKA SEDANG AKTIF -> MATIKAN NOTIFIKASI (UNSUBSCRIBE SISTEM)
                       if (devicePushActive) {
                         try {
-                          await unsubscribeParentDevice(activeStudent.id);
+                          try {
+                            localStorage.setItem(`kawacanaan_push_user_muted_${activeStudent.id}`, 'true');
+                          } catch (_) {}
                           setDevicePushActive(false);
+                          await unsubscribeParentDevice(activeStudent.id);
                           showToast('Notifikasi presensi pada perangkat ini telah dinonaktifkan.', 'info');
                         } catch (err: any) {
                           showToast('Gagal mematikan notifikasi: ' + (err?.message || 'Terjadi kesalahan'), 'error');
@@ -1510,6 +1533,9 @@ export const PortalSiswaView: React.FC = () => {
                       }
 
                       // 2. KASUS JIKA SEDANG MATI -> MINTA IZIN & AKTIFKAN NOTIFIKASI
+                      try {
+                        localStorage.removeItem(`kawacanaan_push_user_muted_${activeStudent.id}`);
+                      } catch (_) {}
                       if (typeof window === 'undefined' || !('Notification' in window)) {
                         showToast('Peramban atau perangkat ini tidak mendukung Web Push Notification.', 'error');
                         return;
