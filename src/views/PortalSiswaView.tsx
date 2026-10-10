@@ -52,7 +52,7 @@ import {
   detectDeviceName,
 } from '../utils/webPushManager';
 
-type MobileScreen = 'beranda' | 'absensi-menu' | 'rekap' | 'profil' | 'scanner' | 'riwayat' | 'detail' | 'izin-sakit';
+type MobileScreen = 'beranda' | 'absensi-menu' | 'rekap' | 'profil' | 'scanner' | 'detail' | 'izin-sakit';
 
 export const PortalSiswaView: React.FC = () => {
   const {
@@ -108,10 +108,7 @@ export const PortalSiswaView: React.FC = () => {
     formatServerDateString(getServerNow())
   );
 
-  // Riwayat filter: 'harian' | 'mingguan' | 'bulanan'
-  const [riwayatFilter, setRiwayatFilter] = useState<'harian' | 'mingguan' | 'bulanan'>('harian');
-
-  // Month & Year state for ringkasan & riwayat
+  // Month & Year state for ringkasan
   const [selectedMonth, setSelectedMonth] = useState<number>(() => {
     const d = getServerNow();
     return d.getMonth(); // 0 - 11
@@ -2004,166 +2001,6 @@ export const PortalSiswaView: React.FC = () => {
           )}
 
           {/* ========================================================================= */}
-          {/* SCREEN 3: RIWAYAT ABSENSI (HISTORY VIEW) */}
-          {/* ========================================================================= */}
-          {currentScreen === 'riwayat' && (
-            <div className="p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
-              {/* Header with Back Arrow */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => navigateTo('beranda')}
-                  className="w-9 h-9 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-800 transition-all cursor-pointer"
-                >
-                  <ArrowLeft size={18} />
-                </button>
-                <h2 className="text-base font-black text-slate-900 leading-tight">
-                  Riwayat Absensi
-                </h2>
-              </div>
-
-              {/* Segment Tabs: Harian, Mingguan, Bulanan */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-2xl">
-                <button
-                  onClick={() => setRiwayatFilter('harian')}
-                  className={`flex-1 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer ${
-                    riwayatFilter === 'harian'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Harian
-                </button>
-                <button
-                  onClick={() => setRiwayatFilter('mingguan')}
-                  className={`flex-1 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer ${
-                    riwayatFilter === 'mingguan'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Mingguan
-                </button>
-                <button
-                  onClick={() => setRiwayatFilter('bulanan')}
-                  className={`flex-1 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer ${
-                    riwayatFilter === 'bulanan'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Bulanan
-                </button>
-              </div>
-
-              {/* Month Navigator Header */}
-              <div className="flex items-center justify-between bg-white border border-slate-100 rounded-2xl p-2.5 shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <Calendar size={16} className="text-blue-600" />
-                  <span className="text-xs font-black text-slate-900">{currentMonthDisplay}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => {
-                      if (selectedMonth === 0) {
-                        setSelectedMonth(11);
-                        setSelectedYear((y) => y - 1);
-                      } else {
-                        setSelectedMonth((m) => m - 1);
-                      }
-                    }}
-                    className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-600 cursor-pointer"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (selectedMonth === 11) {
-                        setSelectedMonth(0);
-                        setSelectedYear((y) => y + 1);
-                      } else {
-                        setSelectedMonth((m) => m + 1);
-                      }
-                    }}
-                    className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-600 cursor-pointer"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-
-              {/* History List */}
-              <div className="space-y-2.5">
-                {historyList.map((item) => {
-                  const hasRecord = Boolean(item.record);
-                  const isHadir = item.record?.status === 'Hadir';
-                  const isIzin = item.record?.status === 'Izin';
-                  const isSakit = item.record?.status === 'Sakit';
-                  const isAlfa = item.record?.status === 'Alfa';
-
-                  return (
-                    <div
-                      key={item.date}
-                      onClick={() => handleOpenDetail(item.date)}
-                      className="bg-white border border-slate-100 hover:border-blue-200 rounded-3xl p-3.5 shadow-xs flex items-center justify-between cursor-pointer transition-all active:scale-98 group"
-                    >
-                      <div className="space-y-1">
-                        <span className="text-[11px] font-bold text-slate-500 block">
-                          {item.formattedDate}
-                        </span>
-
-                        <div className="flex items-center gap-2">
-                          {/* Status Circle Icon */}
-                          {isHadir ? (
-                            <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                              <Check size={12} strokeWidth={3} />
-                            </div>
-                          ) : isIzin ? (
-                            <div className="w-5 h-5 rounded-full bg-amber-400 text-white flex items-center justify-center shrink-0">
-                              <Clock size={12} strokeWidth={2.5} />
-                            </div>
-                          ) : isSakit ? (
-                            <div className="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center shrink-0">
-                              <X size={12} strokeWidth={3} />
-                            </div>
-                          ) : isAlfa ? (
-                            <div className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center shrink-0">
-                              <X size={12} strokeWidth={3} />
-                            </div>
-                          ) : (
-                            <div className="w-5 h-5 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center shrink-0">
-                              <span className="text-[10px] font-black">+</span>
-                            </div>
-                          )}
-
-                          <span className="text-xs font-black text-slate-900">
-                            {hasRecord ? item.record!.status : 'Belum Ada Data'}
-                          </span>
-                        </div>
-
-                        {/* Timestamps / Details */}
-                        <div className="text-[11px] text-slate-500 pl-7 space-y-0.5">
-                          {hasRecord && item.record?.checkInTime && item.record.checkInTime !== '-' ? (
-                            <>
-                              <p>• {item.record.checkInTime} • Scan Masuk</p>
-                              {item.record.checkOutTime && item.record.checkOutTime !== '-' && (
-                                <p>• {item.record.checkOutTime} • Scan Pulang</p>
-                              )}
-                            </>
-                          ) : (
-                            <p className="italic">Belum melakukan scan hari ini</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <ChevronRight size={18} className="text-slate-400 group-hover:text-blue-600 transition-colors shrink-0" />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ========================================================================= */}
           {/* SCREEN 4: DETAIL ABSENSI (DETAIL VIEW) */}
           {/* ========================================================================= */}
           {currentScreen === 'detail' && (
@@ -2171,7 +2008,7 @@ export const PortalSiswaView: React.FC = () => {
               {/* Header with Back Arrow */}
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => navigateTo('riwayat')}
+                  onClick={() => navigateTo(previousScreen || 'beranda')}
                   className="w-9 h-9 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-800 transition-all cursor-pointer"
                 >
                   <ArrowLeft size={18} />
@@ -2362,24 +2199,14 @@ export const PortalSiswaView: React.FC = () => {
           {/* ========================================================================= */}
           {currentScreen === 'absensi-menu' && (
             <div className="p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
-              {/* Header: Title + History Icon */}
-              <div className="flex items-center justify-between pt-1">
-                <div>
-                  <h2 className="text-base font-black text-slate-900 tracking-tight">
-                    Presensi Siswa
-                  </h2>
-                  <p className="text-xs font-semibold text-slate-500">
-                    Catat kehadiran harian & permohonan izin
-                  </p>
-                </div>
-                <button
-                  onClick={() => navigateTo('riwayat')}
-                  className="px-3 py-1.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/90 flex items-center gap-1.5 text-slate-700 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
-                  title="Lihat Riwayat Presensi"
-                >
-                  <RotateCcw size={14} className="text-blue-600" />
-                  <span>Riwayat</span>
-                </button>
+              {/* Header: Title */}
+              <div className="pt-1">
+                <h2 className="text-base font-black text-slate-900 tracking-tight">
+                  Presensi Siswa
+                </h2>
+                <p className="text-xs font-semibold text-slate-500">
+                  Catat kehadiran harian & permohonan izin
+                </p>
               </div>
 
               {/* Action Card 1: Scan Masuk (Emerald Theme with Native Vector SVG) */}
@@ -2560,149 +2387,6 @@ export const PortalSiswaView: React.FC = () => {
 
                 <div className="w-8 h-8 rounded-full bg-amber-100/90 flex items-center justify-center text-amber-800 group-hover:translate-x-1 transition-transform shrink-0">
                   <ChevronRight size={18} />
-                </div>
-              </div>
-
-              {/* Informasi Prosedur Presensi Card */}
-              <div className="bg-slate-50/80 border border-slate-200/80 rounded-3xl p-4 space-y-2">
-                <div className="flex items-center gap-2 text-blue-600 font-black text-xs">
-                  <Info size={16} />
-                  <span>Petunjuk Presensi Mandiri</span>
-                </div>
-                <ul className="text-xs text-slate-600 space-y-1.5 pl-1 leading-relaxed font-medium">
-                  <li>• <strong>Scan Masuk</strong> dilakukan saat siswa tiba di area sekolah/kelas.</li>
-                  <li>• <strong>Scan Pulang</strong> dibuka saat jam kepulangan resmi berakhir.</li>
-                  <li>• Pengajuan <strong>Izin / Sakit</strong> diverifikasi langsung oleh wali kelas.</li>
-                </ul>
-              </div>
-
-              {/* Modern Native Vector School Architecture Artwork (Blends Seamlessly with Theme) */}
-              <div className="pt-1 pb-2 flex flex-col items-center justify-center">
-                <div className="w-full max-w-sm rounded-3xl p-4 bg-gradient-to-b from-blue-50/50 via-slate-50/80 to-blue-50/30 border border-blue-100/70 shadow-2xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
-                      {schoolProfile.namaSekolah || 'SD Cideng 07'}
-                    </span>
-                    <span className="text-[10px] font-extrabold text-blue-600 bg-blue-100/80 px-2 py-0.5 rounded-full">
-                      Pusat Edukasi Digital
-                    </span>
-                  </div>
-
-                  {/* Native Modern Vector SVG Architecture Illustration */}
-                  <div className="w-full h-32 relative">
-                    <svg viewBox="0 0 360 140" className="w-full h-full drop-shadow-xs" fill="none">
-                      <defs>
-                        <linearGradient id="schoolSky" x1="180" y1="0" x2="180" y2="140" gradientUnits="userSpaceOnUse">
-                          <stop offset="0%" stopColor="#EFF6FF" stopOpacity="0.8" />
-                          <stop offset="100%" stopColor="#DBEAFE" stopOpacity="0.4" />
-                        </linearGradient>
-                        <linearGradient id="bldgRoof" x1="180" y1="20" x2="180" y2="45" gradientUnits="userSpaceOnUse">
-                          <stop offset="0%" stopColor="#1E40AF" />
-                          <stop offset="100%" stopColor="#1D4ED8" />
-                        </linearGradient>
-                        <linearGradient id="bldgFacade" x1="180" y1="45" x2="180" y2="120" gradientUnits="userSpaceOnUse">
-                          <stop offset="0%" stopColor="#FFFFFF" />
-                          <stop offset="100%" stopColor="#F8FAFC" />
-                        </linearGradient>
-                        <linearGradient id="groundGrad" x1="0" y1="120" x2="360" y2="120" gradientUnits="userSpaceOnUse">
-                          <stop offset="0%" stopColor="#E2E8F0" stopOpacity="0.4" />
-                          <stop offset="50%" stopColor="#CBD5E1" />
-                          <stop offset="100%" stopColor="#E2E8F0" stopOpacity="0.4" />
-                        </linearGradient>
-                      </defs>
-
-                      {/* Backdrop clouds / soft waves */}
-                      <path d="M20 30 Q35 20 50 30 T80 30" stroke="#BFDBFE" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.5" />
-                      <path d="M280 25 Q295 15 310 25 T340 25" stroke="#BFDBFE" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.5" />
-
-                      {/* Ground line */}
-                      <line x1="20" y1="125" x2="340" y2="125" stroke="url(#groundGrad)" strokeWidth="3" strokeLinecap="round" />
-
-                      {/* Side Trees (Modern geometric minimalist) */}
-                      {/* Left Tree */}
-                      <rect x="52" y="105" width="4" height="20" rx="2" fill="#94A3B8" />
-                      <circle cx="54" cy="95" r="16" fill="#10B981" fillOpacity="0.85" />
-                      <circle cx="50" cy="90" r="12" fill="#34D399" />
-                      {/* Left Small Tree */}
-                      <rect x="30" y="112" width="3" height="13" rx="1.5" fill="#94A3B8" />
-                      <circle cx="31.5" cy="106" r="10" fill="#059669" fillOpacity="0.8" />
-
-                      {/* Right Tree */}
-                      <rect x="304" y="105" width="4" height="20" rx="2" fill="#94A3B8" />
-                      <circle cx="306" cy="95" r="16" fill="#10B981" fillOpacity="0.85" />
-                      <circle cx="310" cy="90" r="12" fill="#34D399" />
-                      {/* Right Small Tree */}
-                      <rect x="326" y="112" width="3" height="13" rx="1.5" fill="#94A3B8" />
-                      <circle cx="327.5" cy="106" r="10" fill="#059669" fillOpacity="0.8" />
-
-                      {/* School Left Wing */}
-                      <rect x="80" y="60" width="60" height="65" rx="3" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="1.2" />
-                      <polygon points="76,60 144,60 140,50 80,50" fill="#3B82F6" />
-                      {/* Left Wing Windows */}
-                      <rect x="90" y="68" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
-                      <rect x="114" y="68" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
-                      <rect x="90" y="88" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
-                      <rect x="114" y="88" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
-
-                      {/* School Right Wing */}
-                      <rect x="220" y="60" width="60" height="65" rx="3" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="1.2" />
-                      <polygon points="216,60 284,60 280,50 220,50" fill="#3B82F6" />
-                      {/* Right Wing Windows */}
-                      <rect x="230" y="68" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
-                      <rect x="254" y="68" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
-                      <rect x="230" y="88" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
-                      <rect x="254" y="88" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
-
-                      {/* School Main Center Building (Elevated) */}
-                      <rect x="135" y="44" width="90" height="81" rx="4" fill="url(#bldgFacade)" stroke="#94A3B8" strokeWidth="1.2" />
-                      
-                      {/* Center Roof Gable & Pediment */}
-                      <polygon points="130,44 180,18 230,44" fill="url(#bldgRoof)" />
-                      {/* Pediment Inner Inset */}
-                      <polygon points="140,42 180,22 220,42" fill="#FFFFFF" fillOpacity="0.15" />
-
-                      {/* Clock Tower Center */}
-                      <circle cx="180" cy="33" r="6.5" fill="#FFFFFF" stroke="#1E3A8A" strokeWidth="1" />
-                      <line x1="180" y1="33" x2="180" y2="29.5" stroke="#1E3A8A" strokeWidth="1" strokeLinecap="round" />
-                      <line x1="180" y1="33" x2="182.5" y2="33" stroke="#1E3A8A" strokeWidth="1" strokeLinecap="round" />
-
-                      {/* Center Pillars */}
-                      <rect x="145" y="48" width="6" height="50" rx="1" fill="#E2E8F0" />
-                      <rect x="165" y="48" width="6" height="50" rx="1" fill="#E2E8F0" />
-                      <rect x="189" y="48" width="6" height="50" rx="1" fill="#E2E8F0" />
-                      <rect x="209" y="48" width="6" height="50" rx="1" fill="#E2E8F0" />
-
-                      {/* Upper Center Windows */}
-                      <rect x="156" y="56" width="16" height="18" rx="2" fill="#60A5FA" stroke="#2563EB" strokeWidth="1" />
-                      <line x1="164" y1="56" x2="164" y2="74" stroke="#FFFFFF" strokeWidth="0.8" />
-                      <line x1="156" y1="65" x2="172" y2="65" stroke="#FFFFFF" strokeWidth="0.8" />
-
-                      <rect x="188" y="56" width="16" height="18" rx="2" fill="#60A5FA" stroke="#2563EB" strokeWidth="1" />
-                      <line x1="196" y1="56" x2="196" y2="74" stroke="#FFFFFF" strokeWidth="0.8" />
-                      <line x1="188" y1="65" x2="204" y2="65" stroke="#FFFFFF" strokeWidth="0.8" />
-
-                      {/* Main Grand Portal Entrance */}
-                      <path d="M168 125 V102 A12 12 0 0 1 192 102 V125 Z" fill="#1D4ED8" stroke="#1E40af" strokeWidth="1" />
-                      <rect x="170" y="105" width="9" height="20" fill="#3B82F6" />
-                      <rect x="181" y="105" width="9" height="20" fill="#2563EB" />
-                      <circle cx="178" cy="115" r="1" fill="#FCD34D" />
-                      <circle cx="182" cy="115" r="1" fill="#FCD34D" />
-
-                      {/* Steps to entrance */}
-                      <rect x="160" y="121" width="40" height="2" rx="0.5" fill="#CBD5E1" />
-                      <rect x="156" y="123" width="48" height="2" rx="0.5" fill="#94A3B8" />
-
-                      {/* School Flagpole */}
-                      <line x1="180" y1="18" x2="180" y2="4" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" />
-                      {/* Indonesian Flag (Merah Putih) */}
-                      <rect x="180" y="4" width="12" height="4" fill="#EF4444" />
-                      <rect x="180" y="8" width="12" height="4" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="0.5" />
-                    </svg>
-                  </div>
-                  
-                  <p className="text-[11px] font-semibold text-slate-500 text-center mt-1">
-                    {schoolProfile.alamat || 'Sistem Absensi Digital Sekolah Modern'}
-                  </p>
                 </div>
               </div>
             </div>
@@ -4113,12 +3797,12 @@ export const PortalSiswaView: React.FC = () => {
               setCurrentScreen('absensi-menu');
             }}
             className={`flex flex-col items-center justify-center gap-1 w-full py-1 rounded-xl transition-all cursor-pointer active:scale-95 ${
-              ['absensi-menu', 'riwayat', 'detail', 'izin-sakit'].includes(currentScreen)
+              ['absensi-menu', 'detail', 'izin-sakit'].includes(currentScreen)
                 ? 'text-blue-600 font-black'
                 : 'text-slate-400 hover:text-slate-600 font-medium'
             }`}
           >
-            <Calendar size={22} strokeWidth={['absensi-menu', 'riwayat', 'detail', 'izin-sakit'].includes(currentScreen) ? 2.5 : 2} />
+            <Calendar size={22} strokeWidth={['absensi-menu', 'detail', 'izin-sakit'].includes(currentScreen) ? 2.5 : 2} />
             <span className="text-[11px] tracking-tight font-bold">Presensi</span>
           </button>
 
