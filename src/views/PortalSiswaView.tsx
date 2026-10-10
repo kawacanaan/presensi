@@ -49,6 +49,7 @@ import {
   getDevicePushStatus,
   requestAdaptiveNativePushPermission,
   subscribeParentDevice,
+  unsubscribeParentDevice,
   detectDeviceName,
 } from '../utils/webPushManager';
 
@@ -1489,14 +1490,36 @@ export const PortalSiswaView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Notification Toggle Button */}
+                  {/* Notification Toggle Button (Sakelar On / Off Push Notifikasi) */}
                   <button
                     type="button"
                     onClick={async () => {
+                      triggerHaptic('tap');
+                      if (!activeStudent?.id) return;
+
+                      // 1. KASUS JIKA SEDANG AKTIF -> MATIKAN NOTIFIKASI (UNSUBSCRIBE SISTEM)
                       if (devicePushActive) {
-                        showToast('Notifikasi presensi sudah aktif pada perangkat ini.', 'info');
+                        try {
+                          await unsubscribeParentDevice(activeStudent.id);
+                          setDevicePushActive(false);
+                          showToast('Notifikasi presensi pada perangkat ini telah dinonaktifkan.', 'info');
+                        } catch (err: any) {
+                          showToast('Gagal mematikan notifikasi: ' + (err?.message || 'Terjadi kesalahan'), 'error');
+                        }
                         return;
                       }
+
+                      // 2. KASUS JIKA SEDANG MATI -> MINTA IZIN & AKTIFKAN NOTIFIKASI
+                      if (typeof window === 'undefined' || !('Notification' in window)) {
+                        showToast('Peramban atau perangkat ini tidak mendukung Web Push Notification.', 'error');
+                        return;
+                      }
+
+                      if (Notification.permission === 'denied') {
+                        showToast('Izin notifikasi diblokir di browser. Klik ikon gembok/setelan di samping alamat web untuk mengizinkan.', 'error');
+                        return;
+                      }
+
                       try {
                         const perm = await Notification.requestPermission();
                         if (perm === 'granted') {
@@ -1507,21 +1530,37 @@ export const PortalSiswaView: React.FC = () => {
                           });
                           if (res.success) {
                             setDevicePushActive(true);
-                            showToast('Notifikasi kehadiran resmi aktif pada ponsel ini!', 'success');
+                            triggerHaptic('success');
+                            showToast('Notifikasi kehadiran resmi aktif pada perangkat ini!', 'success');
+                          } else {
+                            showToast(res.message || 'Gagal mendaftarkan langganan notifikasi ke server.', 'error');
                           }
                         } else {
-                          showToast('Izin notifikasi tidak diberikan pada peramban ponsel.', 'info');
+                          showToast('Izin notifikasi belum diberikan pada peramban.', 'info');
                         }
-                      } catch (_) {}
+                      } catch (err: any) {
+                        showToast('Gagal meminta izin notifikasi: ' + (err?.message || 'Terjadi kendala'), 'error');
+                      }
                     }}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black transition-all cursor-pointer shrink-0 shadow-2xs border ${
                       devicePushActive
-                        ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                        : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 shadow-blue-500/10'
+                        : 'bg-slate-100/90 text-slate-600 border-slate-200 hover:bg-slate-200/90'
                     }`}
+                    title={devicePushActive ? 'Notifikasi aktif. Klik untuk mematikan notifikasi.' : 'Notifikasi nonaktif. Klik untuk mengaktifkan notifikasi.'}
                   >
-                    <Bell size={12} className={devicePushActive ? 'fill-blue-600' : ''} />
-                    <span className="hidden xs:inline">{devicePushActive ? 'Notif Aktif' : 'Notif'}</span>
+                    <Bell
+                      size={13}
+                      className={devicePushActive ? 'fill-blue-600 text-blue-600 animate-in zoom-in-75 duration-150' : 'text-slate-400'}
+                    />
+                    <span className="hidden xs:inline">
+                      {devicePushActive ? 'Notif Aktif' : 'Notif Mati'}
+                    </span>
+                    {devicePushActive ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                    )}
                   </button>
                 </div>
 
