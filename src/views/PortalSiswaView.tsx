@@ -3806,31 +3806,62 @@ export const PortalSiswaView: React.FC = () => {
             <span className="text-[11px] tracking-tight font-bold">Presensi</span>
           </button>
 
-          {/* 3. SCAN (Tengah-tengah, Floating Elevated Action Button) */}
+          {/* 3. SCAN (Tengah-tengah, Floating Elevated Action Button dengan Efek List Glow & Radar Halo) */}
           <div className="flex flex-col items-center justify-center relative -mt-6">
-            <button
-              id="nav-btn-scan"
-              type="button"
-              onClick={() => {
-                triggerHaptic('tap');
-                if (hasCheckedIn && !hasCheckedOut) {
-                  handleOpenScanner('pulang');
-                } else {
-                  handleOpenScanner('masuk');
-                }
-              }}
-              className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white cursor-pointer transition-all duration-200 active:scale-90 ring-4 ring-white shadow-[0_8px_20px_rgba(37,99,235,0.38)] ${
-                currentScreen === 'scanner'
-                  ? 'bg-gradient-to-tr from-indigo-700 via-blue-600 to-sky-500 ring-4 ring-blue-100 scale-105'
-                  : 'bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 hover:brightness-110'
-              }`}
-              title="Pindai QR Presensi"
-            >
-              <QrCode size={22} strokeWidth={2.4} />
-              <span className="text-[9px] font-black tracking-wider uppercase text-white mt-0.5 leading-none">
-                SCAN
-              </span>
-            </button>
+            {/* Ambient Breathing Halo (Aura Cahaya Biru-Cyan) */}
+            <div
+              className="absolute -inset-1.5 rounded-full bg-gradient-to-tr from-blue-600 via-cyan-400 to-indigo-600 blur-md animate-scan-aura-breath pointer-events-none"
+              aria-hidden="true"
+            />
+
+            {/* Radar Expanding Ripple (Sentuhan Gelombang Halus & Profesional) */}
+            <div
+              className="absolute -inset-2.5 rounded-full border-2 border-cyan-400/40 animate-scan-radar-ping pointer-events-none"
+              aria-hidden="true"
+            />
+
+            {/* Glowing Rim / List Glow Container (List Berputar Melingkar Halus) */}
+            <div className="relative p-[2.5px] rounded-full overflow-hidden shadow-[0_10px_25px_rgba(37,99,235,0.45)] ring-4 ring-white transition-transform hover:scale-105 active:scale-95">
+              {/* Rotating Conic Glowing Beam / List Glow Neon */}
+              <div
+                className="absolute inset-[-150%] animate-scan-spin-glow bg-[conic-gradient(from_0deg_at_50%_50%,#38bdf8_0deg,#2563eb_90deg,#818cf8_180deg,#06b6d4_270deg,#38bdf8_360deg)] pointer-events-none"
+                aria-hidden="true"
+              />
+
+              {/* Tombol Utama SCAN */}
+              <button
+                id="nav-btn-scan"
+                type="button"
+                onClick={() => {
+                  triggerHaptic('tap');
+                  if (hasCheckedIn && !hasCheckedOut) {
+                    handleOpenScanner('pulang');
+                  } else {
+                    handleOpenScanner('masuk');
+                  }
+                }}
+                className={`relative z-10 w-13 h-13 rounded-full flex flex-col items-center justify-center text-white cursor-pointer transition-all duration-200 overflow-hidden ${
+                  currentScreen === 'scanner'
+                    ? 'bg-gradient-to-tr from-indigo-700 via-blue-600 to-cyan-500 scale-105 shadow-[inset_0_1px_2px_rgba(255,255,255,0.6)]'
+                    : 'bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 hover:brightness-110 shadow-[inset_0_1px_2px_rgba(255,255,255,0.4)]'
+                }`}
+                title="Pindai QR Presensi"
+              >
+                {/* Kilau Cahaya (Shimmer Sweep) Diagonal Mewah */}
+                <div
+                  className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-[-25deg] animate-shimmer-sweep pointer-events-none"
+                  aria-hidden="true"
+                />
+
+                {/* Titik Akses Kilau Cerdas (Micro Sparkle) */}
+                <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_6px_#22d3ee] animate-pulse" />
+
+                <QrCode size={21} strokeWidth={2.4} className="relative z-10 drop-shadow-xs" />
+                <span className="text-[9px] font-black tracking-widest uppercase text-white mt-0.5 leading-none relative z-10 drop-shadow-xs">
+                  SCAN
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* 4. Rekap */}

@@ -382,4 +382,49 @@
   animation: pulseAura 2.5s ease-in-out infinite;
 }
 
+/* SCAN Button List Glow & Radar Halo */
+@keyframes scanSpinGlow {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes scanAuraBreath {
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.95;
+  }
+}
+
+@keyframes scanRadarPing {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+  70%, 100% {
+    transform: scale(1.38);
+    opacity: 0;
+  }
+}
+
+.animate-scan-spin-glow {
+  animation: scanSpinGlow 3s linear infinite;
+}
+
+.animate-scan-aura-breath {
+  animation: scanAuraBreath 2.4s ease-in-out infinite;
+}
+
+.animate-scan-radar-ping {
+  animation: scanRadarPing 2.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+
 
