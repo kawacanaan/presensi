@@ -326,6 +326,92 @@ export const PortalSiswaView: React.FC = () => {
     return 'Kelas 6A';
   }, [studentClass, activeStudent]);
 
+  // Format nama kelas terstandarisasi untuk mencegah duplikasi kata 'Kelas'
+  const formatStudentClass = useCallback((raw?: string) => {
+    if (!raw) return 'Kelas 6A';
+    const clean = raw.trim();
+    if (/^kelas\b/i.test(clean)) {
+      return clean.replace(/^kelas\s*/i, 'Kelas ');
+    }
+    return `Kelas ${clean}`;
+  }, []);
+
+  const cleanGradeOnly = useCallback((raw?: string) => {
+    if (!raw) return '6A';
+    return raw.trim().replace(/^kelas\s+/i, '');
+  }, []);
+
+  // Foto Profil Siswa (Upload / Pilih Album dari Galeri Perangkat)
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const [customStudentAvatar, setCustomStudentAvatar] = useState<string | null>(() => {
+    try {
+      const id = activeStudent?.id || currentUser?.studentId || currentUser?.id || 'active';
+      return (
+        localStorage.getItem(`kawacanaan_student_avatar_${id}`) ||
+        localStorage.getItem('kawacanaan_student_avatar_active') ||
+        null
+      );
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const id = activeStudent?.id || currentUser?.studentId || currentUser?.id || 'active';
+      const saved =
+        localStorage.getItem(`kawacanaan_student_avatar_${id}`) ||
+        localStorage.getItem('kawacanaan_student_avatar_active') ||
+        null;
+      setCustomStudentAvatar(saved);
+    } catch (_) {}
+  }, [activeStudent?.id, currentUser?.studentId, currentUser?.id]);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Harap pilih berkas gambar (JPG, PNG, atau WebP).', 'warning');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Ukuran foto maksimal 5 MB.', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        const id = activeStudent?.id || currentUser?.studentId || currentUser?.id || 'active';
+        try {
+          localStorage.setItem(`kawacanaan_student_avatar_${id}`, dataUrl);
+          localStorage.setItem('kawacanaan_student_avatar_active', dataUrl);
+        } catch (err) {
+          console.warn('Gagal menyimpan foto avatar ke localStorage:', err);
+        }
+        setCustomStudentAvatar(dataUrl);
+        triggerHaptic('success');
+        showToast('Foto profil berhasil diperbarui!', 'success');
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemoveAvatar = () => {
+    const id = activeStudent?.id || currentUser?.studentId || currentUser?.id || 'active';
+    try {
+      localStorage.removeItem(`kawacanaan_student_avatar_${id}`);
+      localStorage.removeItem('kawacanaan_student_avatar_active');
+    } catch (_) {}
+    setCustomStudentAvatar(null);
+    triggerHaptic('tap');
+    showToast('Foto profil dikembalikan ke avatar bawaan.', 'info');
+  };
+
   // Himpunan ID identitas siswa untuk pencocokan absensi yang presisi
   const studentIdsSet = useMemo(() => {
     const ids = new Set<string>();
@@ -1307,7 +1393,7 @@ export const PortalSiswaView: React.FC = () => {
                   </h1>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs font-semibold text-slate-500">
-                      Kelas {studentDisplayClassName}
+                      {formatStudentClass(studentDisplayClassName)}
                     </span>
                     <button
                       type="button"
@@ -1345,28 +1431,43 @@ export const PortalSiswaView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Circular Student Anime Avatar */}
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 p-0.5 shadow-md shrink-0 overflow-hidden border-2 border-white">
-                  <div className="w-full h-full rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
-                    <svg viewBox="0 0 100 100" className="w-full h-full">
-                      <circle cx="50" cy="50" r="48" fill="#93C5FD" />
-                      {/* Body & Collar */}
-                      <path d="M22 92 C22 72 35 68 50 68 C65 68 78 72 78 92 Z" fill="#1E3A8A" />
-                      <polygon points="50,68 44,82 56,82" fill="#FFFFFF" />
-                      <polygon points="50,74 47,88 53,88" fill="#EF4444" />
-                      {/* Head */}
-                      <circle cx="50" cy="45" r="22" fill="#FDE047" />
-                      {/* Hair */}
-                      <path d="M28 42 C28 26 40 20 50 20 C60 20 72 26 72 42 C72 48 70 52 70 52 C70 52 64 36 50 36 C36 36 30 52 30 52 Z" fill="#451A03" />
-                      {/* Eyes & Smile */}
-                      <circle cx="43" cy="44" r="3" fill="#1E293B" />
-                      <circle cx="57" cy="44" r="3" fill="#1E293B" />
-                      <path d="M46 51 Q50 55 54 51" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" fill="none" />
-                      {/* Blushes */}
-                      <circle cx="39" cy="48" r="2.5" fill="#FCA5A5" />
-                      <circle cx="61" cy="48" r="2.5" fill="#FCA5A5" />
-                    </svg>
-                  </div>
+                {/* Circular Student Avatar (Mendukung Foto Unggahan & Default) */}
+                <div 
+                  onClick={() => {
+                    triggerHaptic('tap');
+                    navigateTo('profil');
+                  }}
+                  className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 p-0.5 shadow-md shrink-0 overflow-hidden border-2 border-white cursor-pointer active:scale-95 transition-transform"
+                  title="Lihat Profil Siswa"
+                >
+                  {customStudentAvatar ? (
+                    <img
+                      src={customStudentAvatar}
+                      alt={activeStudent.nama}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
+                      <svg viewBox="0 0 100 100" className="w-full h-full">
+                        <circle cx="50" cy="50" r="48" fill="#93C5FD" />
+                        {/* Body & Collar */}
+                        <path d="M22 92 C22 72 35 68 50 68 C65 68 78 72 78 92 Z" fill="#1E3A8A" />
+                        <polygon points="50,68 44,82 56,82" fill="#FFFFFF" />
+                        <polygon points="50,74 47,88 53,88" fill="#EF4444" />
+                        {/* Head */}
+                        <circle cx="50" cy="45" r="22" fill="#FDE047" />
+                        {/* Hair */}
+                        <path d="M28 42 C28 26 40 20 50 20 C60 20 72 26 72 42 C72 48 70 52 70 52 C70 52 64 36 50 36 C36 36 30 52 30 52 Z" fill="#451A03" />
+                        {/* Eyes & Smile */}
+                        <circle cx="43" cy="44" r="3" fill="#1E293B" />
+                        <circle cx="57" cy="44" r="3" fill="#1E293B" />
+                        <path d="M46 51 Q50 55 54 51" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" fill="none" />
+                        {/* Blushes */}
+                        <circle cx="39" cy="48" r="2.5" fill="#FCA5A5" />
+                        <circle cx="61" cy="48" r="2.5" fill="#FCA5A5" />
+                      </svg>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2296,7 +2397,7 @@ export const PortalSiswaView: React.FC = () => {
                     Rekapitulasi Presensi
                   </h2>
                   <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                    {activeStudent?.nama || 'Siswa'} • Kelas {studentDisplayClassName}
+                    {activeStudent?.nama || 'Siswa'} • {formatStudentClass(studentDisplayClassName)}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -2528,7 +2629,7 @@ export const PortalSiswaView: React.FC = () => {
                         {/* Info Catatan & Metode */}
                         <div className="text-[11px] font-medium text-slate-600 bg-white/80 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between">
                           <span>Metode: <strong className="text-slate-800">{rec ? 'Tervalidasi Digital' : isHoliday ? 'Hari Libur Kalender' : 'Belum Dicatat'}</strong></span>
-                          <span>Kelas: <strong className="text-slate-800">{studentDisplayClassName}</strong></span>
+                          <span>Kelas: <strong className="text-slate-800">{formatStudentClass(studentDisplayClassName)}</strong></span>
                         </div>
                       </div>
                     );
@@ -2911,45 +3012,60 @@ export const PortalSiswaView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Riwayat Kalender Bulan Ini (Tampil ringkas) */}
+                  {/* Riwayat Kalender Bulan Ini (Tampil Langsung Lengkap) */}
                   <div className="bg-white border border-slate-200/90 rounded-3xl p-4 space-y-3 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-black text-slate-900">
-                        Daftar Presensi {monthNames[selectedMonth]} {selectedYear}
+                        Daftar Presensi Lengkap {monthNames[selectedMonth]} {selectedYear}
                       </h4>
-                      <button
-                        onClick={() => navigateTo('riwayat')}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-700 underline cursor-pointer"
-                      >
-                        Buka Riwayat Penuh
-                      </button>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {historyList.filter((d) => d.isEffective && !d.isFuture).length} Hari Efektif
+                      </span>
                     </div>
 
-                    <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                      {historyList.filter((d) => d.isEffective && !d.isFuture).slice(0, 10).map((item) => (
-                        <div
-                          key={item.date}
-                          onClick={() => handleOpenDetail(item.date)}
-                          className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs cursor-pointer"
-                        >
-                          <span className="font-semibold text-slate-700">
-                            {item.dayName}, {item.date.split('-')[2]} {monthNames[selectedMonth].slice(0, 3)}
-                          </span>
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                            item.record?.status === 'Hadir'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : item.record?.status === 'Izin'
-                              ? 'bg-blue-100 text-blue-800'
-                              : item.record?.status === 'Sakit'
-                              ? 'bg-amber-100 text-amber-800'
-                              : item.record?.status === 'Alfa'
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-slate-200 text-slate-700'
-                          }`}>
-                            {item.record?.status || 'Belum Ada'}
-                          </span>
+                    <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                      {historyList.filter((d) => d.isEffective && !d.isFuture).length === 0 ? (
+                        <div className="text-center py-6 text-xs text-slate-400 font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          Belum ada catatan presensi efektif pada bulan ini.
                         </div>
-                      ))}
+                      ) : (
+                        historyList.filter((d) => d.isEffective && !d.isFuture).map((item) => (
+                          <div
+                            key={item.date}
+                            onClick={() => handleOpenDetail(item.date)}
+                            className="p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-100 flex items-center justify-between text-xs cursor-pointer transition-colors active:scale-99"
+                          >
+                            <div className="space-y-0.5">
+                              <span className="font-bold text-slate-800 block text-xs">
+                                {item.dayName}, {item.date.split('-')[2]} {monthNames[selectedMonth]} {selectedYear}
+                              </span>
+                              <div className="text-[10px] text-slate-500 font-medium">
+                                {item.record?.checkInTime && item.record.checkInTime !== '-' ? (
+                                  <span>
+                                    Masuk: <strong>{item.record.checkInTime}</strong>
+                                    {item.record.checkOutTime && item.record.checkOutTime !== '-' ? ` • Pulang: ${item.record.checkOutTime}` : ''}
+                                  </span>
+                                ) : (
+                                  <span>{item.record?.status ? 'Tercatat ' + item.record.status : 'Belum scan presensi'}</span>
+                                )}
+                              </div>
+                            </div>
+                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-full shadow-2xs ${
+                              item.record?.status === 'Hadir'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : item.record?.status === 'Izin'
+                                ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                : item.record?.status === 'Sakit'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                : item.record?.status === 'Alfa'
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {item.record?.status || 'Belum Ada'}
+                            </span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3125,28 +3241,87 @@ export const PortalSiswaView: React.FC = () => {
                 </h2>
               </div>
 
-              {/* Large Avatar & Name */}
+              {/* Large Avatar & Name with Image Upload */}
               <div className="flex flex-col items-center justify-center text-center space-y-2 pt-2">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 p-1 shadow-lg shrink-0 overflow-hidden border-2 border-white">
-                  <div className="w-full h-full rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
-                    <svg viewBox="0 0 100 100" className="w-full h-full">
-                      <circle cx="50" cy="50" r="48" fill="#93C5FD" />
-                      {/* Body */}
-                      <path d="M22 92 C22 72 35 68 50 68 C65 68 78 72 78 92 Z" fill="#1E3A8A" />
-                      <polygon points="50,68 44,82 56,82" fill="#FFFFFF" />
-                      <polygon points="50,74 47,88 53,88" fill="#EF4444" />
-                      {/* Head */}
-                      <circle cx="50" cy="45" r="22" fill="#FDE047" />
-                      {/* Hair */}
-                      <path d="M28 42 C28 26 40 20 50 20 C60 20 72 26 72 42 C72 48 70 52 70 52 C70 52 64 36 50 36 C36 36 30 52 30 52 Z" fill="#451A03" />
-                      {/* Eyes */}
-                      <circle cx="43" cy="44" r="3" fill="#1E293B" />
-                      <circle cx="57" cy="44" r="3" fill="#1E293B" />
-                      <path d="M46 51 Q50 55 54 51" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" fill="none" />
-                      <circle cx="39" cy="48" r="2.5" fill="#FCA5A5" />
-                      <circle cx="61" cy="48" r="2.5" fill="#FCA5A5" />
-                    </svg>
+                {/* Hidden File Input for Device Photo / Album Upload */}
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
+
+                <div className="relative group">
+                  <div
+                    onClick={() => photoInputRef.current?.click()}
+                    className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 p-1 shadow-lg shrink-0 overflow-hidden border-2 border-white cursor-pointer relative active:scale-95 transition-transform"
+                    title="Klik untuk memilih foto dari album/perangkat"
+                  >
+                    {customStudentAvatar ? (
+                      <img
+                        src={customStudentAvatar}
+                        alt={activeStudent.nama}
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
+                        <svg viewBox="0 0 100 100" className="w-full h-full">
+                          <circle cx="50" cy="50" r="48" fill="#93C5FD" />
+                          {/* Body */}
+                          <path d="M22 92 C22 72 35 68 50 68 C65 68 78 72 78 92 Z" fill="#1E3A8A" />
+                          <polygon points="50,68 44,82 56,82" fill="#FFFFFF" />
+                          <polygon points="50,74 47,88 53,88" fill="#EF4444" />
+                          {/* Head */}
+                          <circle cx="50" cy="45" r="22" fill="#FDE047" />
+                          {/* Hair */}
+                          <path d="M28 42 C28 26 40 20 50 20 C60 20 72 26 72 42 C72 48 70 52 70 52 C70 52 64 36 50 36 C36 36 30 52 30 52 Z" fill="#451A03" />
+                          {/* Eyes */}
+                          <circle cx="43" cy="44" r="3" fill="#1E293B" />
+                          <circle cx="57" cy="44" r="3" fill="#1E293B" />
+                          <path d="M46 51 Q50 55 54 51" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" fill="none" />
+                          <circle cx="39" cy="48" r="2.5" fill="#FCA5A5" />
+                          <circle cx="61" cy="48" r="2.5" fill="#FCA5A5" />
+                        </svg>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Camera Badge Button on Avatar */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      photoInputRef.current?.click();
+                    }}
+                    className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-md border-2 border-white transition-all active:scale-90 cursor-pointer"
+                    title="Unggah / Ganti Foto Profil"
+                  >
+                    <Camera size={14} />
+                  </button>
+                </div>
+
+                {/* Photo Action Buttons */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
+                  >
+                    <Camera size={13} />
+                    <span>{customStudentAvatar ? 'Ganti Foto' : 'Pilih Foto Profil'}</span>
+                  </button>
+                  {customStudentAvatar && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveAvatar}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                      title="Kembalikan ke avatar awal"
+                    >
+                      <RotateCcw size={12} />
+                      <span>Reset</span>
+                    </button>
+                  )}
                 </div>
 
                 <div>
@@ -3154,7 +3329,7 @@ export const PortalSiswaView: React.FC = () => {
                     {activeStudent.nama}
                   </h3>
                   <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                    Kelas {studentDisplayClassName} • {schoolProfile.namaSekolah || 'SD Cideng 07'}
+                    {formatStudentClass(studentDisplayClassName)} • {schoolProfile.namaSekolah || 'SD Cideng 07'}
                   </p>
                 </div>
               </div>
@@ -3196,7 +3371,7 @@ export const PortalSiswaView: React.FC = () => {
                     <span className="text-xs font-semibold text-slate-500">Kelas</span>
                   </div>
                   <span className="text-xs font-black text-slate-900">
-                    {studentDisplayClassName}
+                    {formatStudentClass(studentDisplayClassName)}
                   </span>
                 </div>
 
@@ -3212,15 +3387,6 @@ export const PortalSiswaView: React.FC = () => {
                     {schoolProfile.tahunAjaran || '2026/2027'}
                   </span>
                 </div>
-              </div>
-
-              {/* Encouragement Card with Blue Shield Icon */}
-              <div className="bg-blue-50/80 border border-blue-100 rounded-3xl p-4 flex items-center justify-between shadow-2xs">
-                <div className="flex items-center gap-2.5 text-blue-900 font-black text-xs">
-                  <ShieldCheck size={20} className="text-blue-600 shrink-0" />
-                  <span>Tetap disiplin dalam berabsensi!</span>
-                </div>
-                <Smile size={20} className="text-blue-600 shrink-0" />
               </div>
 
               {/* Profile Bottom Actions */}
@@ -3471,7 +3637,7 @@ export const PortalSiswaView: React.FC = () => {
                 <div className="bg-blue-50/70 border border-blue-100 rounded-2xl p-3 flex items-start gap-2.5">
                   <ShieldAlert size={16} className="text-blue-600 shrink-0 mt-0.5" />
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Pengajuan resmi akan diteruskan ke Wali Kelas ({studentDisplayClassName}) untuk diverifikasi. Setelah disetujui, sistem otomatis mencatat presensi Anda sebagai <b>{leaveType === 'sakit' ? 'Sakit' : 'Izin'}</b>.
+                    Pengajuan resmi akan diteruskan ke Wali Kelas ({formatStudentClass(studentDisplayClassName)}) untuk diverifikasi. Setelah disetujui, sistem otomatis mencatat presensi Anda sebagai <b>{leaveType === 'sakit' ? 'Sakit' : 'Izin'}</b>.
                   </p>
                 </div>
 
@@ -3596,8 +3762,9 @@ export const PortalSiswaView: React.FC = () => {
 
         </div>
 
-        {/* 3. PERSISTENT FIXED BOTTOM NAVIGATION BAR (Beranda, Presensi, Rekap, Profil) */}
-        <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-50 bg-white border-t border-slate-200/90 px-3 sm:px-6 py-2 flex items-center justify-around shadow-[0_-4px_25px_rgba(0,0,0,0.08)] select-none pb-[max(0.625rem,env(safe-area-inset-bottom))]">
+        {/* 3. PERSISTENT FIXED BOTTOM NAVIGATION BAR */}
+        {/* Urutan navigasi sesuai spesifikasi desain: Beranda, Presensi, SCAN (tengah), Rekap, Profil */}
+        <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-50 bg-white border-t border-slate-200/90 px-2 py-1.5 grid grid-cols-5 items-center justify-items-center shadow-[0_-4px_25px_rgba(0,0,0,0.08)] select-none pb-[max(0.625rem,env(safe-area-inset-bottom))]">
           {/* 1. Beranda */}
           <button
             id="nav-btn-beranda"
@@ -3605,7 +3772,7 @@ export const PortalSiswaView: React.FC = () => {
               triggerHaptic('tap');
               setCurrentScreen('beranda');
             }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-2.5 rounded-xl active:scale-95 ${
+            className={`flex flex-col items-center justify-center gap-1 w-full py-1 rounded-xl transition-all cursor-pointer active:scale-95 ${
               currentScreen === 'beranda'
                 ? 'text-blue-600 font-black'
                 : 'text-slate-400 hover:text-slate-600 font-medium'
@@ -3615,31 +3782,58 @@ export const PortalSiswaView: React.FC = () => {
             <span className="text-[11px] tracking-tight font-bold">Beranda</span>
           </button>
 
-          {/* 2. Presensi (sebelumnya Absensi) */}
+          {/* 2. Presensi */}
           <button
             id="nav-btn-presensi"
             onClick={() => {
               triggerHaptic('tap');
               setCurrentScreen('absensi-menu');
             }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-2.5 rounded-xl active:scale-95 ${
-              ['absensi-menu', 'scanner', 'riwayat', 'detail', 'izin-sakit'].includes(currentScreen)
+            className={`flex flex-col items-center justify-center gap-1 w-full py-1 rounded-xl transition-all cursor-pointer active:scale-95 ${
+              ['absensi-menu', 'riwayat', 'detail', 'izin-sakit'].includes(currentScreen)
                 ? 'text-blue-600 font-black'
                 : 'text-slate-400 hover:text-slate-600 font-medium'
             }`}
           >
-            <Calendar size={22} strokeWidth={['absensi-menu', 'scanner', 'riwayat', 'detail', 'izin-sakit'].includes(currentScreen) ? 2.5 : 2} />
+            <Calendar size={22} strokeWidth={['absensi-menu', 'riwayat', 'detail', 'izin-sakit'].includes(currentScreen) ? 2.5 : 2} />
             <span className="text-[11px] tracking-tight font-bold">Presensi</span>
           </button>
 
-          {/* 3. Rekap (Tambahan Baru: Harian, Mingguan, Bulanan, Semester) */}
+          {/* 3. SCAN (Tengah-tengah, Floating Elevated Action Button) */}
+          <div className="flex flex-col items-center justify-center relative -mt-6">
+            <button
+              id="nav-btn-scan"
+              type="button"
+              onClick={() => {
+                triggerHaptic('tap');
+                if (hasCheckedIn && !hasCheckedOut) {
+                  handleOpenScanner('pulang');
+                } else {
+                  handleOpenScanner('masuk');
+                }
+              }}
+              className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white cursor-pointer transition-all duration-200 active:scale-90 ring-4 ring-white shadow-[0_8px_20px_rgba(37,99,235,0.38)] ${
+                currentScreen === 'scanner'
+                  ? 'bg-gradient-to-tr from-indigo-700 via-blue-600 to-sky-500 ring-4 ring-blue-100 scale-105'
+                  : 'bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 hover:brightness-110'
+              }`}
+              title="Pindai QR Presensi"
+            >
+              <QrCode size={22} strokeWidth={2.4} />
+              <span className="text-[9px] font-black tracking-wider uppercase text-white mt-0.5 leading-none">
+                SCAN
+              </span>
+            </button>
+          </div>
+
+          {/* 4. Rekap */}
           <button
             id="nav-btn-rekap"
             onClick={() => {
               triggerHaptic('tap');
               setCurrentScreen('rekap');
             }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-2.5 rounded-xl active:scale-95 ${
+            className={`flex flex-col items-center justify-center gap-1 w-full py-1 rounded-xl transition-all cursor-pointer active:scale-95 ${
               currentScreen === 'rekap'
                 ? 'text-blue-600 font-black'
                 : 'text-slate-400 hover:text-slate-600 font-medium'
@@ -3649,14 +3843,14 @@ export const PortalSiswaView: React.FC = () => {
             <span className="text-[11px] tracking-tight font-bold">Rekap</span>
           </button>
 
-          {/* 4. Profil */}
+          {/* 5. Profil */}
           <button
             id="nav-btn-profil"
             onClick={() => {
               triggerHaptic('tap');
               setCurrentScreen('profil');
             }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-2.5 rounded-xl active:scale-95 ${
+            className={`flex flex-col items-center justify-center gap-1 w-full py-1 rounded-xl transition-all cursor-pointer active:scale-95 ${
               currentScreen === 'profil'
                 ? 'text-blue-600 font-black'
                 : 'text-slate-400 hover:text-slate-600 font-medium'
