@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Bell,
   BellRing,
@@ -16,6 +16,10 @@ import {
   Eye,
   ShieldCheck,
   HelpCircle,
+  Upload,
+  RefreshCw,
+  Link as LinkIcon,
+  Trash2,
 } from 'lucide-react';
 import { usePlatformBrand, DEFAULT_PLATFORM_LOGO } from '../../utils/platformBranding';
 
@@ -95,6 +99,93 @@ export const SystemNotificationTab: React.FC<Props> = ({
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [previewTab, setPreviewTab] = useState<'masuk' | 'pulang' | 'izin'>('masuk');
+  const [badgeInputMode, setBadgeInputMode] = useState<'upload' | 'url'>('upload');
+  const [isUploadingBadge, setIsUploadingBadge] = useState(false);
+  const [isBadgeDragOver, setIsBadgeDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleBadgeFile = (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('File harus berupa gambar (PNG, JPG, SVG, WebP).', 'error');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      showToast('Ukuran file gambar maksimal 4MB.', 'error');
+      return;
+    }
+
+    setIsUploadingBadge(true);
+    try {
+      if (file.type.includes('svg')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const res = e.target?.result as string;
+          if (res) {
+            setForm((prev) => ({ ...prev, badge_icon_url: res }));
+            showToast('Logo SVG berhasil diunggah untuk notifikasi Android & Windows.', 'success');
+          }
+          setIsUploadingBadge(false);
+        };
+        reader.onerror = () => {
+          setIsUploadingBadge(false);
+          showToast('Gagal membaca file SVG.', 'error');
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const rawDataUrl = e.target?.result as string;
+        const img = new Image();
+        img.onload = () => {
+          // Kompresi dan skala proporsional maksimal 256x256 untuk icon status bar Android & Windows
+          const maxDim = 256;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, w, h);
+            // Utamakan PNG agar transparansi icon status bar Android/Windows terjaga sempurna
+            const pngUrl = canvas.toDataURL('image/png');
+            setForm((prev) => ({ ...prev, badge_icon_url: pngUrl }));
+            showToast('Gambar logo berhasil dioptimasi untuk notifikasi Android & Windows. Klik "Simpan Pengaturan" untuk menerapkan.', 'success');
+          } else {
+            setForm((prev) => ({ ...prev, badge_icon_url: rawDataUrl }));
+          }
+          setIsUploadingBadge(false);
+        };
+        img.onerror = () => {
+          setIsUploadingBadge(false);
+          showToast('Gagal memuat gambar untuk dioptimasi.', 'error');
+        };
+        img.src = rawDataUrl;
+      };
+      reader.onerror = () => {
+        setIsUploadingBadge(false);
+        showToast('Gagal membaca file gambar.', 'error');
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setIsUploadingBadge(false);
+      showToast('Gagal memproses file gambar.', 'error');
+    }
+  };
 
   useEffect(() => {
     if (initialConfig) {
@@ -323,64 +414,161 @@ export const SystemNotificationTab: React.FC<Props> = ({
               )}
             </div>
 
-            {/* Logo Status Bar Kiri (Badge Icon) */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <label className="block text-xs font-bold text-slate-800">
-                    Logo Status Bar Sebelah Kiri (Badge Icon Android)
-                  </label>
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-700 border border-blue-200">
-                    LOGO SUPABASE
-                  </span>
+            {/* Logo Status Bar Kiri (Badge Icon Android & Windows) */}
+            <div className="space-y-3 p-4 rounded-xl bg-slate-50/90 border border-slate-200/90 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-200/70">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <label className="block text-xs font-bold text-slate-900">
+                      Logo Status Bar Sebelah Kiri (Badge Icon Android &amp; Windows)
+                    </label>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-rose-100 text-rose-700 border border-rose-200">
+                      ICON NOTIFIKASI
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                    Menampilkan icon resmi notifikasi di bar status ponsel Android dan banner notifikasi Windows Action Center.
+                  </p>
                 </div>
-                <span className="text-[10px] text-slate-500 font-medium truncate max-w-[200px]" title={effectiveSupabaseLogo}>
-                  Default: Logo Kawacanaan Supabase
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-900 flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-xs">
-                  <img
-                    src={form.badge_icon_url || effectiveSupabaseLogo}
-                    alt="Badge Preview"
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = effectiveSupabaseLogo;
-                    }}
-                  />
-                </div>
-                <input
-                  type="text"
-                  value={form.badge_icon_url}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, badge_icon_url: e.target.value }))
-                  }
-                  placeholder={effectiveSupabaseLogo}
-                  className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white font-mono"
-                />
-              </div>
 
-              {/* Pilihan Cepat Logo Badge */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                <span className="text-[10px] text-slate-400">Pilihan Cepat:</span>
-                {[
-                  { label: 'Logo Kawacanaan (Supabase)', url: effectiveSupabaseLogo },
-                  { label: 'Emblem LK Default', url: '/lk.png' },
-                  { label: 'Favicon', url: '/favicon.png' },
-                ].map((opt) => (
+                {/* Tab Pemilihan: Unggah Gambar atau Tautan URL */}
+                <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 text-[11px] self-start sm:self-auto shrink-0 shadow-2xs">
                   <button
-                    key={opt.url}
                     type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, badge_icon_url: opt.url }))}
-                    className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors cursor-pointer ${
-                      form.badge_icon_url === opt.url
-                        ? 'bg-rose-50 text-rose-700 border-rose-300 font-bold'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    onClick={() => setBadgeInputMode('upload')}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                      badgeInputMode === 'upload'
+                        ? 'bg-rose-50 text-rose-700 shadow-2xs font-bold border border-rose-200'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    {opt.label}
+                    <Upload size={12} />
+                    <span>Unggah Gambar</span>
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setBadgeInputMode('url')}
+                    className={`px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                      badgeInputMode === 'url'
+                        ? 'bg-rose-50 text-rose-700 shadow-2xs font-bold border border-rose-200'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <LinkIcon size={12} />
+                    <span>Tautan URL</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Komponen Unggah File Gambar (Drag & Drop + File Explorer) */}
+              {badgeInputMode === 'upload' ? (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsBadgeDragOver(true);
+                  }}
+                  onDragLeave={() => setIsBadgeDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsBadgeDragOver(false);
+                    const file = e.dataTransfer?.files?.[0];
+                    if (file) handleBadgeFile(file);
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`relative border-2 border-dashed rounded-xl p-4 sm:p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                    isBadgeDragOver
+                      ? 'border-rose-500 bg-rose-50/70'
+                      : 'border-slate-300 hover:border-rose-400 hover:bg-white bg-white/70'
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleBadgeFile(file);
+                    }}
+                  />
+
+                  <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center mb-2.5 shadow-inner border border-rose-100">
+                    {isUploadingBadge ? (
+                      <RefreshCw size={20} className="animate-spin text-rose-600" />
+                    ) : (
+                      <Upload size={20} />
+                    )}
+                  </div>
+
+                  <p className="font-bold text-slate-800 text-xs">
+                    {isUploadingBadge
+                      ? 'Sedang Memproses & Mengoptimasi Gambar...'
+                      : 'Klik untuk Memilih File Gambar atau Seret ke Sini'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Dukungan format PNG (transparan), JPG, WebP, SVG (Maks. 4MB). Otomatis dioptimasi untuk Android &amp; Windows.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5 pt-1">
+                  <label className="block text-[11px] font-semibold text-slate-700">
+                    Masukkan URL / Tautan Langsung Gambar:
+                  </label>
+                  <input
+                    type="text"
+                    value={form.badge_icon_url}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, badge_icon_url: e.target.value }))
+                    }
+                    placeholder={effectiveSupabaseLogo}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white font-mono"
+                  />
+                </div>
+              )}
+
+              {/* Status Pratinjau Gambar Aktif & Tombol Reset ke Logo Supabase */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-slate-200/70 gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-900 flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-xs">
+                    <img
+                      src={form.badge_icon_url || effectiveSupabaseLogo}
+                      alt="Badge Preview"
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = effectiveSupabaseLogo;
+                      }}
+                    />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <p className="text-xs font-bold text-slate-800 truncate">
+                      {form.badge_icon_url && form.badge_icon_url.startsWith('data:image')
+                        ? 'Gambar Kustom Berhasil Diunggah'
+                        : form.badge_icon_url === effectiveSupabaseLogo
+                        ? 'Menggunakan Logo Kawacanaan Supabase'
+                        : 'Logo Kustom Aktif'}
+                    </p>
+                    <p className="text-[10px] text-slate-500 truncate font-mono">
+                      {form.badge_icon_url
+                        ? (form.badge_icon_url.startsWith('data:') ? 'Gambar Terunggah (Base64)' : form.badge_icon_url)
+                        : effectiveSupabaseLogo}
+                    </p>
+                  </div>
+                </div>
+
+                {form.badge_icon_url && form.badge_icon_url !== effectiveSupabaseLogo && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, badge_icon_url: effectiveSupabaseLogo }));
+                      showToast('Logo badge dikembalikan ke Logo Kawacanaan Supabase.', 'info');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-100 text-slate-600 text-[11px] font-semibold transition-colors shrink-0 cursor-pointer shadow-2xs self-start sm:self-auto"
+                    title="Kembalikan ke Logo Kawacanaan dari Supabase"
+                  >
+                    <RotateCcw size={12} />
+                    <span>Kembalikan ke Logo Supabase</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -743,7 +931,7 @@ export const SystemNotificationTab: React.FC<Props> = ({
                 <li className="flex items-start gap-1.5">
                   <CheckCircle2 size={13} className="text-emerald-600 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Logo Status Bar Kiri:</strong> Menggunakan logo resmi Kawacanaan yang terhubung dengan Supabase (<code className="font-mono text-slate-800 break-all">{effectiveSupabaseLogo}</code>).
+                    <strong>Logo Status Bar Kiri (Android &amp; Windows):</strong> Mendukung unggah gambar langsung (PNG transparan, JPG, SVG, WebP) atau menggunakan logo default Supabase.
                   </span>
                 </li>
                 <li className="flex items-start gap-1.5">
