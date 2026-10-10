@@ -613,7 +613,6 @@ export default async function handler(req: any, res: any, env?: any) {
         const payerEmail = String(
           b.customer_details?.email ||
           b.email ||
-          b.custom_field1 ||
           ''
         ).trim().toLowerCase();
 
@@ -624,11 +623,32 @@ export default async function handler(req: any, res: any, env?: any) {
           'Wali Kelas / Guru'
         ).trim();
 
-        // Cari profile guru / ruang kerja berdasarkan email pembayar
+        const customOrderId = String(b.custom_field1 || '').trim();
+        const customSchoolId = String(b.custom_field2 || '').trim();
+
+        // Cari profile guru / ruang kerja berdasarkan custom_field atau email pembayar
         let matchedSchoolId: string | null = null;
         let matchedUserProf: any = null;
 
-        if (payerEmail) {
+        // 1. Cek jika custom_field1 berisi order_id transaksi pre-register di payments
+        if (customOrderId) {
+          const { data: prePay } = await db
+            .from('payments')
+            .select('*')
+            .eq('invoice_no', customOrderId)
+            .maybeSingle();
+          if (prePay && prePay.school_id) {
+            matchedSchoolId = prePay.school_id;
+          }
+        }
+
+        // 2. Cek jika custom_field2 berisi school_id langsung
+        if (!matchedSchoolId && customSchoolId) {
+          matchedSchoolId = customSchoolId;
+        }
+
+        // 3. Cek profile guru / ruang kerja berdasarkan email pembayar
+        if (!matchedSchoolId && payerEmail) {
           const { data: prof } = await db
             .from('profiles')
             .select('id, name, school_id, role, subscription_plan, subscription_expires_at')
@@ -1291,6 +1311,182 @@ export default async function handler(req: any, res: any, env?: any) {
     } catch (err: any) {
       return json(res, 500, { error: err.message });
     }
+  }
+
+  // --------------------------------------------------------------------------
+  // 4.1 CLAIM PAYMENT (Klaim Transaksi Midtrans ke Akun Guru)
+  // --------------------------------------------------------------------------
+  if (action === 'claim_payment') {
+    const rawOrderId = String(b.order_id || q.order_id || '').trim();
+    const schoolId = String(b.school_id || q.school_id || '').trim();
+    const userId = String(b.user_id || q.user_id || '').trim();
+
+    if (!rawOrderId) {
+      return json(res, 400, { error: 'Order ID / Nomor Pesanan Midtrans wajib diisi.' });
+    }
+
+    if (!schoolId && !userId) {
+      return json(res, 400, { error: 'Identitas akun guru (school_id / user_id) tidak ditemukan.' });
+    }
+
+    // Cari transaksi di tabel payments
+    let { data: payment } = await db
+      .from('payments')
+      .select('*')
+      .eq('invoice_no', rawOrderId)
+      .maybeSingle();
+
+    // Jika belum ketemu dan input berupa email, cari transaksi SETTLED terbaru dengan email tersebut
+    if (!payment && rawOrderId.includes('@')) {
+      const { data: payByEmail } = await db
+        .from('payments')
+        .select('*')
+        .ilike('email', rawOrderId)
+        .eq('status', 'SETTLED')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (payByEmail) payment = payByEmail;
+    }
+
+    // Jika belum ketemu, coba pencarian sebagian (partial match)
+    if (!payment && rawOrderId.length >= 6) {
+      const { data: payByLike } = await db
+        .from('payments')
+        .select('*')
+        .ilike('invoice_no', `%${rawOrderId}%`)
+        .eq('status', 'SETTLED')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (payByLike) payment = payByLike;
+    }
+
+    // Jika belum ada di tabel payments, coba inquiry status langsung ke Midtrans API jika server key ada
+    if (!payment && midtrans.server_key) {
+      try {
+        const endpoints = getMidtransEndpoints(midtrans.is_production);
+        const checkUrl = endpoints.statusUrl(rawOrderId);
+        const authHeader = `Basic ${Buffer.from(`${midtrans.server_key}:`).toString('base64')}`;
+        const midRes = await fetch(checkUrl, {
+          headers: { Accept: 'application/json', Authorization: authHeader }
+        });
+        if (midRes.ok) {
+          const midData = await midRes.json();
+          const isSettled = midData.transaction_status === 'settlement' || (midData.transaction_status === 'capture' && midData.fraud_status === 'accept');
+          if (isSettled) {
+            const amount = Number(midData.gross_amount || 0);
+            const { data: inserted } = await db.from('payments').insert({
+              invoice_no: rawOrderId,
+              school_id: null,
+              plan_name: 'Dukungan Paket Guru (Midtrans Payment Link)',
+              amount,
+              unique_code: 0,
+              total_amount: amount,
+              status: 'SETTLED',
+              payment_method: midData.payment_type || 'MIDTRANS',
+              school_name: 'Ruang Kerja Guru',
+              contact_name: midData.customer_details?.first_name || 'Guru',
+              email: midData.customer_details?.email || null,
+              created_at: new Date().toISOString(),
+              paid_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            }).select().single();
+            payment = inserted;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!payment) {
+      return json(res, 404, { error: `Transaksi dengan Order ID "${rawOrderId}" belum ditemukan atau belum dibayar di Midtrans.` });
+    }
+
+    const isSettled = payment.status === 'SETTLED' || payment.status === 'settlement' || payment.status === 'capture';
+    if (!isSettled) {
+      return json(res, 400, { error: `Transaksi "${rawOrderId}" masih berstatus ${payment.status || 'PENDING'}. Silakan selesaikan pembayaran terlebih dahulu di Midtrans.` });
+    }
+
+    // Tentukan sekolah target
+    let targetSchoolId = schoolId;
+    if (!targetSchoolId && userId) {
+      const { data: prof } = await db.from('profiles').select('school_id').eq('id', userId).maybeSingle();
+      targetSchoolId = prof?.school_id;
+    }
+
+    if (!targetSchoolId) {
+      return json(res, 400, { error: 'Ruang kerja guru tidak ditemukan untuk menautkan transaksi.' });
+    }
+
+    // Cegah klaim ganda jika sudah dikaitkan ke sekolah lain yang berbeda
+    if (payment.school_id && payment.school_id !== targetSchoolId) {
+      return json(res, 403, { error: 'Transaksi ini telah dikaitkan dengan akun sekolah/guru lain.' });
+    }
+
+    const { data: school } = await db.from('schools').select('*').eq('id', targetSchoolId).maybeSingle();
+    if (!school) {
+      return json(res, 404, { error: 'Data ruang kerja sekolah/guru tidak ditemukan di database.' });
+    }
+
+    const verifiedGross = Number(payment.total_amount || payment.amount || 0);
+    const targetPlan = 'guru_pro';
+    const { durationMonths, durationDays, newExpiry } = calculateNewExpiry(
+      targetPlan,
+      verifiedGross,
+      school.subscription_expires_at,
+      school.plan
+    );
+
+    if (!newExpiry) {
+      return json(res, 400, { error: 'Nominal pembayaran tidak valid untuk aktivasi lisensi.' });
+    }
+
+    await db.from('schools').update({
+      status: 'active',
+      plan: targetPlan,
+      subscription_expires_at: newExpiry.toISOString(),
+      max_teachers: 1,
+      max_students: 50,
+      max_classes: 1,
+    }).eq('id', school.id);
+
+    try {
+      await db.from('profiles').update({
+        subscription_plan: targetPlan,
+        subscription_status: 'active',
+        subscription_expires_at: newExpiry.toISOString(),
+      }).eq('school_id', school.id);
+    } catch (_) {}
+
+    await db.from('payments').update({
+      school_id: school.id,
+      school_name: school.name || 'Ruang Kerja Guru',
+      status: 'SETTLED',
+      paid_at: payment.paid_at || new Date().toISOString(),
+      expires_at: newExpiry.toISOString(),
+    }).eq('invoice_no', rawOrderId);
+
+    await db.from('audit_logs').insert({
+      school_id: school.id,
+      actor_name: 'Guru (Claim Midtrans)',
+      actor_role: 'USER',
+      action: 'CLAIM_MIDTRANS_PAYMENT',
+      details: {
+        order_id: rawOrderId,
+        gross_amount: verifiedGross,
+        duration_months: durationMonths,
+        duration_days: durationDays,
+        new_expiry: newExpiry.toISOString(),
+      },
+    });
+
+    return json(res, 200, {
+      ok: true,
+      message: `Selamat! Pembayaran berhasil diverifikasi. Paket Guru Pro aktif +${durationMonths} bulan hingga ${newExpiry.toLocaleDateString('id-ID')}.`,
+      new_expiry: newExpiry.toISOString(),
+      gross_amount: verifiedGross,
+      duration_months: durationMonths,
+    });
   }
 
   // --------------------------------------------------------------------------

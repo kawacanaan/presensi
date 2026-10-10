@@ -61,6 +61,9 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
   const [paymentStatusText, setPaymentStatusText] = useState<string | null>(null);
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const [verifiedExpiresAt, setVerifiedExpiresAt] = useState<string | null>(null);
+  const [showClaimInput, setShowClaimInput] = useState(false);
+  const [claimOrderId, setClaimOrderId] = useState('');
+  const [isClaiming, setIsClaiming] = useState(false);
 
   const pollingRef = useRef<any>(null);
 
@@ -71,6 +74,9 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
       setIsSubmitting(false);
       setPaymentSession(null);
       setPaymentStatusText(null);
+      setShowClaimInput(false);
+      setClaimOrderId('');
+      setIsClaiming(false);
     } else {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
@@ -166,52 +172,51 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
     setIsSubmitting(true);
     setPaymentStatusText(null);
 
-    // JIKA SUPERADMIN TELAH MENYISIPKAN PAYMENT LINK DARI MIDTRANS:
-    // Langsung buka Payment Link Midtrans di jendela/tab baru tanpa modal nominal
-    if (directPaymentLink) {
-      try {
-        window.open(directPaymentLink, '_blank');
-      } catch (_) {
-        window.location.href = directPaymentLink;
-      }
-
-      const tempOrderId = `KWC-LINK-${Date.now().toString(36).toUpperCase()}`;
-      setPaymentSession({
-        orderId: tempOrderId,
-        snapToken: null,
-        amount: 0,
-        planTitle: 'Dukungan Pengembangan Paket Guru (Midtrans Payment Link)',
-      });
-      setPaymentStatusText(
-        'Tautan pembayaran Midtrans telah dibuka di jendela baru. Silakan selesaikan pembayaran Anda di Midtrans.'
-      );
-      setStep('paying');
-      setIsSubmitting(false);
-      return;
-    }
-
     try {
       const resData = await createTeacherMidtransTransaction();
+      const activeLink = (directPaymentLink || resData?.payment_link_teacher || '').trim();
 
-      // Cek apakah resData juga mengembalikan payment_link_teacher dari server
-      if (resData?.payment_link_teacher && resData.payment_link_teacher.trim()) {
-        const link = resData.payment_link_teacher.trim();
-        setDirectPaymentLink(link);
+      // JIKA SUPERADMIN TELAH MENYISIPKAN PAYMENT LINK DARI MIDTRANS:
+      // Tautkan Order ID dan data pengguna ke Payment Link, lalu buka di jendela pembayaran
+      if (activeLink) {
+        let finalLink = activeLink;
         try {
-          window.open(link, '_blank');
+          const u = new URL(activeLink, window.location.origin);
+          if (resData?.order_id) {
+            u.searchParams.set('order_id', resData.order_id);
+            u.searchParams.set('custom_field1', resData.order_id);
+          }
+          if (currentUser?.schoolId) {
+            u.searchParams.set('custom_field2', currentUser.schoolId);
+          }
+          if (currentUser?.email) {
+            u.searchParams.set('email', currentUser.email);
+            u.searchParams.set('customer_email', currentUser.email);
+          }
+          const userName = currentUser?.name || currentUser?.username || '';
+          if (userName) {
+            u.searchParams.set('name', userName);
+            u.searchParams.set('first_name', userName);
+          }
+          finalLink = u.toString();
+        } catch (_) {}
+
+        try {
+          window.open(finalLink, '_blank');
         } catch (_) {
-          window.location.href = link;
+          window.location.href = finalLink;
         }
 
-        const tempOrderId = resData.order_id || `KWC-LINK-${Date.now().toString(36).toUpperCase()}`;
-        setPaymentSession({
-          orderId: tempOrderId,
+        const session: PaymentSession = {
+          orderId: resData.order_id,
           snapToken: null,
           amount: 0,
           planTitle: 'Dukungan Pengembangan Paket Guru (Midtrans Payment Link)',
-        });
+        };
+
+        setPaymentSession(session);
         setPaymentStatusText(
-          'Tautan pembayaran Midtrans telah dibuka di jendela baru. Silakan selesaikan pembayaran Anda di Midtrans.'
+          'Jendela pembayaran Midtrans telah dibuka. Setelah pembayaran selesai, status akun Anda akan langsung aktif secara otomatis.'
         );
         setStep('paying');
         setIsSubmitting(false);
@@ -325,6 +330,46 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
       setPaymentStatusText('Belum dapat memverifikasi. Silakan coba beberapa saat lagi.');
     } finally {
       setIsCheckingPayment(false);
+    }
+  };
+
+  // 5. Klaim Pembayaran Manual jika Data Berbeda (Email / Nama di Midtrans Berbeda)
+  const handleClaimPayment = async () => {
+    const rawVal = claimOrderId.trim();
+    if (!rawVal) {
+      showToast('Masukkan Nomor Pesanan (Order ID) atau Email Midtrans.', 'error');
+      return;
+    }
+    setIsClaiming(true);
+    setPaymentStatusText('Menghubungkan pembayaran ke akun guru Anda...');
+
+    try {
+      const res = await fetch('/api/midtrans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'claim_payment',
+          order_id: rawVal,
+          school_id: currentUser?.schoolId || null,
+          user_id: currentUser?.id || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Gagal memverifikasi klaim pembayaran.');
+      }
+
+      showToast(data.message || 'Pembayaran berhasil diverifikasi!', 'success');
+      if (data.new_expiry) {
+        setVerifiedExpiresAt(data.new_expiry);
+      }
+      await completeTeacherUpgrade(rawVal, data.gross_amount || 5000, data.new_expiry);
+      setStep('success');
+    } catch (err: any) {
+      setPaymentStatusText(err.message || 'Gagal memverifikasi pembayaran.');
+      showToast(err.message || 'Gagal memverifikasi pembayaran.', 'error');
+    } finally {
+      setIsClaiming(false);
     }
   };
 
@@ -565,6 +610,44 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
                 <RefreshCw size={13} className={isCheckingPayment ? 'animate-spin' : ''} />
                 <span>{isCheckingPayment ? 'Memeriksa Status...' : 'Cek Status Pembayaran'}</span>
               </button>
+            </div>
+
+            {/* Opsi Klaim Manual jika Data / Email Berbeda */}
+            <div className="pt-2 border-t border-slate-200/80 text-left">
+              <button
+                type="button"
+                onClick={() => setShowClaimInput(!showClaimInput)}
+                className="w-full text-left text-[11px] font-bold text-slate-600 hover:text-blue-600 flex items-center justify-between py-1 transition cursor-pointer"
+              >
+                <span>Sudah bayar dengan email / data berbeda di Midtrans?</span>
+                <span className="text-[11px] text-blue-600 font-bold">{showClaimInput ? '▲ Sembunyikan' : '▼ Klaim Akun'}</span>
+              </button>
+
+              {showClaimInput && (
+                <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 animate-in fade-in duration-150">
+                  <p className="text-[10.5px] text-slate-500 leading-relaxed">
+                    Jika Anda memasukkan email atau nama berbeda saat membayar di Midtrans, masukkan <strong>Nomor Pesanan (Order ID)</strong> dari struk Midtrans atau <strong>Email</strong> yang Anda gunakan saat membayar:
+                  </p>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={claimOrderId}
+                      onChange={(e) => setClaimOrderId(e.target.value)}
+                      placeholder="Contoh: KWC-... atau email@anda.com"
+                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleClaimPayment}
+                      disabled={isClaiming || !claimOrderId.trim()}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {isClaiming ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                      <span>{isClaiming ? 'Memproses...' : 'Klaim'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button

@@ -1942,6 +1942,96 @@ export default async function handler(req: any, res: any, env?: any) {
       return json(res, 200, { ok: true, message: 'Data riwayat pembayaran berhasil dihapus permanen.' });
     }
 
+    if(action==='assign_payment_school'){
+      const paymentId = req.body.payment_id || req.body.id;
+      const invoiceNo = req.body.invoice_no || req.body.invoiceNo;
+      const targetSchoolId = req.body.school_id || req.body.target_school_id;
+
+      if (!targetSchoolId) return json(res, 400, { error: 'ID Sekolah/Ruang Kerja tujuan wajib dipilih.' });
+      if (!paymentId && !invoiceNo) return json(res, 400, { error: 'ID Pembayaran atau No Invoice wajib diisi.' });
+
+      let query = admin.from('payments').select('*');
+      if (paymentId) query = query.eq('id', paymentId);
+      else query = query.eq('invoice_no', invoiceNo);
+      const { data: payment, error: pErr } = await query.maybeSingle();
+
+      if (pErr || !payment) return json(res, 404, { error: 'Transaksi pembayaran tidak ditemukan.' });
+
+      const { data: school, error: sErr } = await admin.from('schools').select('*').eq('id', targetSchoolId).maybeSingle();
+      if (sErr || !school) return json(res, 404, { error: 'Sekolah tujuan tidak ditemukan di database.' });
+
+      const verifiedGross = Number(payment.total_amount || payment.amount || 0);
+      const isTeacherPlan = payment.plan_name?.toLowerCase().includes('guru') || (!payment.plan_name?.toLowerCase().includes('sekolah'));
+      const targetPlan = isTeacherPlan ? 'guru_pro' : 'sekolah_pro';
+
+      let durationDays = 30;
+      let durationMonths = 1;
+      let newExpiry = new Date();
+
+      if (targetPlan === 'guru_pro') {
+        const months = verifiedGross <= 5000 ? 1 : verifiedGross <= 10000 ? 2 : verifiedGross <= 15000 ? 3 : verifiedGross <= 20000 ? 4 : verifiedGross <= 25000 ? 5 : verifiedGross <= 30000 ? 6 : verifiedGross <= 35000 ? 7 : verifiedGross <= 40000 ? 8 : verifiedGross <= 45000 ? 9 : verifiedGross <= 50000 ? 10 : verifiedGross <= 55000 ? 11 : 12;
+        durationMonths = months;
+        durationDays = months * 30;
+        const now = new Date();
+        const curExp = school.subscription_expires_at ? new Date(school.subscription_expires_at) : now;
+        const baseDate = curExp > now ? curExp : now;
+        newExpiry = new Date(baseDate);
+        newExpiry.setMonth(newExpiry.getMonth() + months);
+      } else {
+        const isYearly = verifiedGross >= 200000;
+        durationDays = isYearly ? 365 : 30;
+        const now = new Date();
+        const curExp = school.subscription_expires_at ? new Date(school.subscription_expires_at) : now;
+        const baseDate = curExp > now ? curExp : now;
+        newExpiry = new Date(baseDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+      }
+
+      await admin.from('schools').update({
+        status: 'active',
+        plan: targetPlan,
+        subscription_expires_at: newExpiry.toISOString(),
+      }).eq('id', school.id);
+
+      try {
+        await admin.from('profiles').update({
+          subscription_plan: targetPlan,
+          subscription_status: 'active',
+          subscription_expires_at: newExpiry.toISOString(),
+        }).eq('school_id', school.id);
+      } catch (_) {}
+
+      await admin.from('payments').update({
+        school_id: school.id,
+        school_name: school.name,
+        status: 'SETTLED',
+        paid_at: payment.paid_at || new Date().toISOString(),
+        expires_at: newExpiry.toISOString(),
+      }).eq('id', payment.id);
+
+      await admin.from('audit_logs').insert({
+        school_id: school.id,
+        actor_id: caller.user.id,
+        actor_name: profile.name || 'Super Admin',
+        actor_role: 'SUPER_ADMIN',
+        action: 'SUPERADMIN_ASSIGN_PAYMENT_SCHOOL',
+        details: {
+          invoice_no: payment.invoice_no,
+          amount: verifiedGross,
+          target_school_id: school.id,
+          target_school_name: school.name,
+          plan: targetPlan,
+          duration_days: durationDays,
+          new_expiry: newExpiry.toISOString(),
+        },
+      });
+
+      return json(res, 200, {
+        ok: true,
+        message: `Transaksi ${payment.invoice_no} berhasil ditautkan ke ${school.name}! Masa aktif ${targetPlan === 'guru_pro' ? 'Paket Guru Pro' : 'Paket Sekolah Pro'} aktif hingga ${newExpiry.toLocaleDateString('id-ID')}.`,
+        new_expiry: newExpiry.toISOString(),
+      });
+    }
+
     if(action==='create_direct_subscription'){
       const schoolId = String(req.body.school_id || req.body.schoolId || '').trim();
       const planRaw = String(req.body.plan || 'sekolah_pro').toLowerCase().trim();
