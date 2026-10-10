@@ -1383,11 +1383,21 @@ export const PortalSiswaView: React.FC = () => {
           {/* SCREEN 1: BERANDA (HOME) */}
           {/* ========================================================================= */}
           {currentScreen === 'beranda' && (() => {
-            const monthlyTotalCount = (monthlyStats.hadir || 0) + (monthlyStats.izin || 0) + (monthlyStats.sakit || 0) + (monthlyStats.alfa || 0);
-            const hadirPct = monthlyTotalCount > 0 ? Math.round(((monthlyStats.hadir || 0) / monthlyTotalCount) * 100) : 0;
-            const izinPct = monthlyTotalCount > 0 ? Math.round(((monthlyStats.izin || 0) / monthlyTotalCount) * 100) : 0;
-            const sakitPct = monthlyTotalCount > 0 ? Math.round(((monthlyStats.sakit || 0) / monthlyTotalCount) * 100) : 0;
-            const alfaPct = monthlyTotalCount > 0 ? Math.round(((monthlyStats.alfa || 0) / monthlyTotalCount) * 100) : 0;
+            // Akumulasi dari jumlah hari belajar efektif pada bulan berjalan sebagai basis 100%
+            const effectiveDaysInMonth = (() => {
+              const effCount = historyList.filter((d) => d.isEffective).length;
+              if (effCount > 0) return effCount;
+              const weekDayCount = historyList.filter((d) => {
+                const day = new Date(d.date).getDay();
+                return day !== 0 && day !== 6;
+              }).length;
+              return weekDayCount > 0 ? weekDayCount : 20;
+            })();
+
+            const hadirPct = Math.min(100, Math.round(((monthlyStats.hadir || 0) / effectiveDaysInMonth) * 100));
+            const izinPct = Math.min(100, Math.round(((monthlyStats.izin || 0) / effectiveDaysInMonth) * 100));
+            const sakitPct = Math.min(100, Math.round(((monthlyStats.sakit || 0) / effectiveDaysInMonth) * 100));
+            const alfaPct = Math.min(100, Math.round(((monthlyStats.alfa || 0) / effectiveDaysInMonth) * 100));
 
             const renderRingGraph = (pct: number, trackClass: string, strokeClass: string, textClass: string) => {
               const radius = 16;
@@ -1518,14 +1528,14 @@ export const PortalSiswaView: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Hero Card: Absensi Hari Ini (Modern 3D Education Banner Menyatu Sempurna) */}
+                {/* Hero Card: Absensi Hari Ini (Professional High-End Vector Banner Menyatu Sempurna) */}
                 <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-blue-600 to-[#1d4ed8] text-white p-4 sm:p-5 relative overflow-hidden shadow-xl shadow-blue-600/25 border border-blue-400/25">
                   {/* Background decorative soft ambient lights */}
                   <div className="absolute top-0 right-0 w-44 h-44 bg-sky-400/20 rounded-full blur-2xl pointer-events-none" />
                   <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-indigo-500/25 rounded-full blur-2xl pointer-events-none" />
 
-                  <div className="relative z-10 flex items-center justify-between gap-3">
-                    <div className="max-w-[60%] sm:max-w-[62%] space-y-1.5">
+                  <div className="relative z-10 flex items-center justify-between gap-2.5">
+                    <div className="max-w-[62%] sm:max-w-[64%] space-y-1.5">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0 border border-white/20 shadow-xs">
                           <Calendar size={17} />
@@ -1572,18 +1582,83 @@ export const PortalSiswaView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Gambar 3D Pendidikan Modern - Menyatu dengan Latar Belakang Spanduk */}
+                    {/* Ilustrasi Vektor Modern Glassmorphic - 100% Native SVG, Menyatu Sempurna & Tampil Profesional */}
                     <div className="w-28 h-28 sm:w-32 sm:h-32 shrink-0 relative flex items-center justify-center">
-                      <div className="w-full h-full relative rounded-2xl overflow-hidden shadow-lg shadow-blue-950/25 border border-white/15">
-                        <img
-                          src="/src/assets/images/edu_modern_3d_1791606602840.jpg"
-                          alt="Ilustrasi 3D Presensi Edukasi"
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover transform scale-105"
-                        />
-                        {/* Blend vignette overlay agar menyatu halus dengan gradient biru spanduk */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/40 via-transparent to-transparent pointer-events-none" />
-                      </div>
+                      <svg viewBox="0 0 120 120" className="w-full h-full drop-shadow-xl" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          {/* Background radial glow */}
+                          <radialGradient id="bannerGlow" cx="60" cy="60" r="55" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.45" />
+                            <stop offset="60%" stopColor="#2563EB" stopOpacity="0.15" />
+                            <stop offset="100%" stopColor="#1D4ED8" stopOpacity="0" />
+                          </radialGradient>
+
+                          {/* Main glass card gradient */}
+                          <linearGradient id="cardGrad" x1="20" y1="20" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.32" />
+                            <stop offset="50%" stopColor="#60A5FA" stopOpacity="0.18" />
+                            <stop offset="100%" stopColor="#1E40AF" stopOpacity="0.4" />
+                          </linearGradient>
+
+                          {/* Badge gradient */}
+                          <linearGradient id="badgeGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stopColor="#10B981" />
+                            <stop offset="100%" stopColor="#059669" />
+                          </linearGradient>
+
+                          {/* Accent pill gradient */}
+                          <linearGradient id="pillGrad" x1="0" y1="0" x2="60" y2="0" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.4" />
+                            <stop offset="100%" stopColor="#93C5FD" stopOpacity="0.15" />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Ambient Glow & Concentric Rings */}
+                        <circle cx="60" cy="60" r="52" fill="url(#bannerGlow)" />
+                        <circle cx="60" cy="60" r="48" stroke="#93C5FD" strokeOpacity="0.25" strokeWidth="1" strokeDasharray="3 3" />
+                        <circle cx="60" cy="60" r="38" stroke="#BFDBFE" strokeOpacity="0.3" strokeWidth="1" />
+
+                        {/* Floating Smart Attendance Card (Angled perspective feel) */}
+                        <g transform="rotate(-6 60 60)">
+                          {/* Card Shadow */}
+                          <rect x="23" y="27" width="74" height="66" rx="14" fill="#0F172A" fillOpacity="0.25" />
+                          
+                          {/* Card Base Glassmorphic */}
+                          <rect x="23" y="25" width="74" height="66" rx="14" fill="url(#cardGrad)" stroke="#FFFFFF" strokeOpacity="0.5" strokeWidth="1.2" />
+
+                          {/* Top Header Strip inside card */}
+                          <rect x="30" y="32" width="28" height="4" rx="2" fill="#FFFFFF" fillOpacity="0.8" />
+                          <rect x="30" y="39" width="18" height="3" rx="1.5" fill="#BFDBFE" fillOpacity="0.7" />
+                          
+                          {/* Mini QR / Chip Icon in top-right */}
+                          <rect x="75" y="32" width="14" height="12" rx="3" fill="#FFFFFF" fillOpacity="0.22" stroke="#FFFFFF" strokeOpacity="0.55" strokeWidth="1" />
+                          <rect x="78" y="35" width="3" height="3" rx="0.5" fill="#FFFFFF" fillOpacity="0.95" />
+                          <rect x="83" y="38" width="3" height="3" rx="0.5" fill="#93C5FD" />
+
+                          {/* Center Verified Attendance Seal */}
+                          <g transform="translate(60, 58)">
+                            {/* Glow halo */}
+                            <circle cx="0" cy="0" r="16" fill="#10B981" fillOpacity="0.28" />
+                            {/* Main circular seal */}
+                            <circle cx="0" cy="0" r="12" fill="url(#badgeGrad)" stroke="#A7F3D0" strokeWidth="1.2" />
+                            {/* Sharp white checkmark */}
+                            <path d="M-4.5 0 L-1.5 3 L4.5 -3" stroke="#FFFFFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                          </g>
+
+                          {/* Bottom Status Pill */}
+                          <rect x="30" y="74" width="60" height="9" rx="4.5" fill="url(#pillGrad)" stroke="#FFFFFF" strokeOpacity="0.35" strokeWidth="0.8" />
+                          {/* Status Dot */}
+                          <circle cx="36" cy="78.5" r="2" fill="#34D399" />
+                          {/* Text mock lines */}
+                          <rect x="42" y="77" width="36" height="3" rx="1.5" fill="#FFFFFF" fillOpacity="0.9" />
+                        </g>
+
+                        {/* Floating subtle accent sparkles */}
+                        <circle cx="18" cy="38" r="2" fill="#67E8F9" />
+                        <circle cx="104" cy="45" r="2.5" fill="#FDE047" fillOpacity="0.9" />
+                        <circle cx="26" cy="98" r="1.5" fill="#FFFFFF" fillOpacity="0.7" />
+                        <path d="M96 22 L98 26 L102 28 L98 30 L96 34 L94 30 L90 28 L94 26 Z" fill="#FFFFFF" fillOpacity="0.75" />
+                      </svg>
                     </div>
                   </div>
                 </div>
@@ -1615,12 +1690,17 @@ export const PortalSiswaView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Ringkasan Presensi Section dengan Grafik Lingkaran pada Setiap Grid */}
+                {/* Ringkasan Presensi Section dengan Grafik Lingkaran Berbasis Hari Belajar Efektif */}
                 <div className="space-y-3 pt-1">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black text-slate-900 tracking-tight">
-                      Ringkasan Presensi
-                    </h3>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 tracking-tight leading-tight">
+                        Ringkasan Presensi
+                      </h3>
+                      <span className="text-[10px] font-bold text-slate-500 block">
+                        Basis {effectiveDaysInMonth} Hari Belajar Efektif (100%)
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => {
@@ -1642,7 +1722,7 @@ export const PortalSiswaView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 4 Stat Cards in 2x2 Grid dengan Grafik Lingkaran Modern */}
+                  {/* 4 Stat Cards in 2x2 Grid dengan Grafik Lingkaran Berbasis Hari Belajar Efektif */}
                   <div className="grid grid-cols-2 gap-3">
                     {/* Hadir */}
                     <div className="bg-white border border-slate-200/80 hover:border-emerald-300 rounded-3xl p-3.5 shadow-xs hover:shadow-md transition-all flex items-center justify-between gap-2">
@@ -1658,8 +1738,8 @@ export const PortalSiswaView: React.FC = () => {
                           <span className="text-[11px] text-slate-400 font-bold">Hari</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
-                            {hadirPct}% Rasio
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60 truncate" title={`${monthlyStats.hadir} dari ${effectiveDaysInMonth} Hari Efektif`}>
+                            {hadirPct}% / {effectiveDaysInMonth} H
                           </span>
                         </div>
                       </div>
@@ -1680,8 +1760,8 @@ export const PortalSiswaView: React.FC = () => {
                           <span className="text-[11px] text-slate-400 font-bold">Hari</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60">
-                            {izinPct}% Rasio
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60 truncate" title={`${monthlyStats.izin} dari ${effectiveDaysInMonth} Hari Efektif`}>
+                            {izinPct}% / {effectiveDaysInMonth} H
                           </span>
                         </div>
                       </div>
@@ -1702,8 +1782,8 @@ export const PortalSiswaView: React.FC = () => {
                           <span className="text-[11px] text-slate-400 font-bold">Hari</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200/60">
-                            {sakitPct}% Rasio
+                          <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200/60 truncate" title={`${monthlyStats.sakit} dari ${effectiveDaysInMonth} Hari Efektif`}>
+                            {sakitPct}% / {effectiveDaysInMonth} H
                           </span>
                         </div>
                       </div>
@@ -1724,8 +1804,8 @@ export const PortalSiswaView: React.FC = () => {
                           <span className="text-[11px] text-slate-400 font-bold">Hari</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-                            {alfaPct}% Rasio
+                          <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 truncate" title={`${monthlyStats.alfa} dari ${effectiveDaysInMonth} Hari Efektif`}>
+                            {alfaPct}% / {effectiveDaysInMonth} H
                           </span>
                         </div>
                       </div>
