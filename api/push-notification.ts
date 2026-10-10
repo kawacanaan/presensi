@@ -194,6 +194,40 @@ export default async function handler(req: any, res: any, env?: any) {
   return json(res, 400, { error: 'Aksi tidak dikenali.' });
 }
 
+export async function getNotificationConfig(env?: any) {
+  const db = getAdminClient(env);
+  if (db) {
+    try {
+      const { data: st } = await db
+        .from('platform_settings')
+        .select('integrations')
+        .eq('id', 1)
+        .maybeSingle();
+      if (st?.integrations?.notification_config) {
+        return st.integrations.notification_config;
+      }
+    } catch (_) {}
+  }
+  return {
+    is_enabled: true,
+    show_large_icon: false, // Default: Logo kanan dihapus sesuai permintaan pengguna
+    large_icon_url: '',
+    badge_icon_url: '/pwa-192.png', // Logo sistem Kawacanaan terbaru
+    app_title_prefix: 'Kawacanaan Presensi',
+    notify_on_present: true,
+    notify_on_late: true,
+    notify_on_checkout: true,
+    notify_on_leave: true,
+    vibrate: true,
+    require_interaction: true,
+    template_present: 'Ananda {nama_siswa}{kelas} telah hadir di kelas tepat waktu pukul {jam} WIB.',
+    template_late: 'Ananda {nama_siswa}{kelas} telah hadir di kelas pukul {jam} WIB (Status: Terlambat).',
+    template_checkout: 'Ananda {nama_siswa}{kelas} telah selesai belajar dan keluar kelas pukul {jam} WIB.',
+    template_leave_approved: 'Pengajuan {jenis_izin}{tanggal} untuk Ananda {nama_siswa} telah DISETUJUI oleh {penyetuju}.',
+    template_leave_rejected: 'Pengajuan {jenis_izin}{tanggal} untuk Ananda {nama_siswa} DITOLAK oleh {penyetuju}.',
+  };
+}
+
 /**
  * Fungsi internal server-side untuk mengirimkan notifikasi presensi langsung ke semua perangkat terdaftar
  * (Dapat dipanggil langsung oleh /api/attendance tanpa melalui network loopback)
@@ -232,6 +266,18 @@ export async function sendAttendancePushToStudent(
     };
   }
 
+  const notifConfig = await getNotificationConfig(env);
+  if (notifConfig.is_enabled === false) {
+    return {
+      ok: true,
+      sentCount: 0,
+      failedCount: 0,
+      totalDevices: 0,
+      eventType: eventType || 'masuk',
+      message: 'Notifikasi sistem dinonaktifkan oleh pengaturan Super Admin.',
+    };
+  }
+
   const type = eventType === 'pulang' ? 'pulang' : 'masuk';
   const sName = String(studentName || 'Ananda').trim();
   const time = String(
@@ -242,30 +288,56 @@ export async function sendAttendancePushToStudent(
     String(notes || '').toLowerCase().includes('terlambat') ||
     String(status || '').toLowerCase().includes('terlambat');
 
+  if (type === 'masuk') {
+    if (isLate && notifConfig.notify_on_late === false) {
+      return { ok: true, sentCount: 0, failedCount: 0, totalDevices: 0, eventType: type, message: 'Notifikasi presensi terlambat dinonaktifkan.' };
+    }
+    if (!isLate && notifConfig.notify_on_present === false) {
+      return { ok: true, sentCount: 0, failedCount: 0, totalDevices: 0, eventType: type, message: 'Notifikasi presensi tepat waktu dinonaktifkan.' };
+    }
+  } else if (type === 'pulang') {
+    if (notifConfig.notify_on_checkout === false) {
+      return { ok: true, sentCount: 0, failedCount: 0, totalDevices: 0, eventType: type, message: 'Notifikasi presensi pulang dinonaktifkan.' };
+    }
+  }
+
   let title = '';
   let bodyText = '';
   const classSuffix = className ? ` (${className})` : '';
 
   if (type === 'masuk') {
     title = `Presensi Masuk — ${sName} ✅`;
-    bodyText = isLate
-      ? `Ananda ${sName}${classSuffix} telah hadir di kelas pukul ${time} WIB (Status: Terlambat).`
-      : `Ananda ${sName}${classSuffix} telah hadir di kelas tepat waktu pukul ${time} WIB.`;
+    const tmpl = isLate
+      ? (notifConfig.template_late || 'Ananda {nama_siswa}{kelas} telah hadir di kelas pukul {jam} WIB (Status: Terlambat).')
+      : (notifConfig.template_present || 'Ananda {nama_siswa}{kelas} telah hadir di kelas tepat waktu pukul {jam} WIB.');
+    bodyText = tmpl
+      .replace('{nama_siswa}', sName)
+      .replace('{kelas}', classSuffix)
+      .replace('{jam}', time);
   } else {
     title = `Presensi Pulang — ${sName} 🏠`;
-    bodyText = `Ananda ${sName}${classSuffix} telah selesai belajar dan keluar kelas pukul ${time} WIB.`;
+    const tmpl = notifConfig.template_checkout || 'Ananda {nama_siswa}{kelas} telah selesai belajar dan keluar kelas pukul {jam} WIB.';
+    bodyText = tmpl
+      .replace('{nama_siswa}', sName)
+      .replace('{kelas}', classSuffix)
+      .replace('{jam}', time);
   }
+
+  // Logo kanan: jika show_large_icon = false, kosongkan icon agar logo di sebelah kanan dihapus total
+  const iconUrl = notifConfig.show_large_icon ? (notifConfig.large_icon_url || '/pwa-192.png') : '';
+  const badgeUrl = notifConfig.badge_icon_url || '/pwa-192.png';
 
   const payload = JSON.stringify({
     title,
     body: bodyText,
-    icon: '/pwa-192.png',
-    badge: '/favicon.png',
+    icon: iconUrl, // Empty string = tidak ada logo di sebelah kanan
+    badge: badgeUrl, // Logo status bar kiri
     tag: `attendance-${studentId}-${type}`,
     url: '/',
     studentId,
     eventType: type,
     timestamp: Date.now(),
+    requireInteraction: notifConfig.require_interaction !== false,
   });
 
   const devices = await getSubscriptionsForStudent(studentId, env);
@@ -354,6 +426,17 @@ export async function sendLeaveDecisionPushToStudent(
     };
   }
 
+  const notifConfig = await getNotificationConfig(env);
+  if (notifConfig.is_enabled === false || notifConfig.notify_on_leave === false) {
+    return {
+      ok: true,
+      sentCount: 0,
+      failedCount: 0,
+      totalDevices: 0,
+      message: 'Notifikasi persetujuan izin/sakit dinonaktifkan oleh pengaturan Super Admin.',
+    };
+  }
+
   const sName = String(studentName || 'Ananda').trim();
   const typeLabel = leaveType === 'sakit' ? 'Sakit' : 'Izin';
   const isApproved = decision === 'APPROVED';
@@ -365,20 +448,39 @@ export async function sendLeaveDecisionPushToStudent(
   const dateInfo = datesText ? ` (${datesText})` : '';
   const reviewer = reviewerName || 'Wali Kelas';
 
-  const bodyText = isApproved
-    ? `Pengajuan ${typeLabel}${dateInfo} untuk Ananda ${sName} telah DISETUJUI oleh ${reviewer}. Catatan kehadiran telah otomatis diperbarui.`
-    : `Pengajuan ${typeLabel}${dateInfo} untuk Ananda ${sName} DITOLAK oleh ${reviewer}.${notes ? ` Catatan: ${notes}` : ''}`;
+  let bodyText = '';
+  if (isApproved) {
+    const tmpl = notifConfig.template_leave_approved || 'Pengajuan {jenis_izin}{tanggal} untuk Ananda {nama_siswa} telah DISETUJUI oleh {penyetuju}.';
+    bodyText = tmpl
+      .replace('{nama_siswa}', sName)
+      .replace('{jenis_izin}', typeLabel)
+      .replace('{tanggal}', dateInfo)
+      .replace('{penyetuju}', reviewer);
+  } else {
+    const tmpl = notifConfig.template_leave_rejected || 'Pengajuan {jenis_izin}{tanggal} untuk Ananda {nama_siswa} DITOLAK oleh {penyetuju}.';
+    bodyText = tmpl
+      .replace('{nama_siswa}', sName)
+      .replace('{jenis_izin}', typeLabel)
+      .replace('{tanggal}', dateInfo)
+      .replace('{penyetuju}', reviewer);
+    if (notes) bodyText += ` Catatan: ${notes}`;
+  }
+
+  // Logo kanan: jika show_large_icon = false, kosongkan icon agar logo di sebelah kanan dihapus total
+  const iconUrl = notifConfig.show_large_icon ? (notifConfig.large_icon_url || '/pwa-192.png') : '';
+  const badgeUrl = notifConfig.badge_icon_url || '/pwa-192.png';
 
   const payload = JSON.stringify({
     title,
     body: bodyText,
-    icon: '/pwa-192.png',
-    badge: '/favicon.png',
+    icon: iconUrl, // Empty string = tidak ada logo di sebelah kanan
+    badge: badgeUrl, // Logo status bar kiri
     tag: `leave-decision-${studentId}-${Date.now()}`,
     url: '/',
     studentId,
     decision,
     timestamp: Date.now(),
+    requireInteraction: notifConfig.require_interaction !== false,
   });
 
   const devices = await getSubscriptionsForStudent(studentId, env);

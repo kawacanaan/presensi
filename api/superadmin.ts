@@ -2260,6 +2260,26 @@ export default async function handler(req: any, res: any, env?: any) {
         is_api_key_configured: Boolean(evoApiKey && evoApiKey.trim().length > 0),
       };
 
+      const rawNotif = integrations.notification_config || {};
+      const defaultNotificationConfig = {
+        is_enabled: rawNotif.is_enabled !== undefined ? Boolean(rawNotif.is_enabled) : true,
+        show_large_icon: rawNotif.show_large_icon !== undefined ? Boolean(rawNotif.show_large_icon) : false,
+        large_icon_url: rawNotif.large_icon_url || '',
+        badge_icon_url: rawNotif.badge_icon_url || '/pwa-192.png',
+        app_title_prefix: rawNotif.app_title_prefix || 'Kawacanaan Presensi',
+        notify_on_present: rawNotif.notify_on_present !== undefined ? Boolean(rawNotif.notify_on_present) : true,
+        notify_on_late: rawNotif.notify_on_late !== undefined ? Boolean(rawNotif.notify_on_late) : true,
+        notify_on_checkout: rawNotif.notify_on_checkout !== undefined ? Boolean(rawNotif.notify_on_checkout) : true,
+        notify_on_leave: rawNotif.notify_on_leave !== undefined ? Boolean(rawNotif.notify_on_leave) : true,
+        vibrate: rawNotif.vibrate !== undefined ? Boolean(rawNotif.vibrate) : true,
+        require_interaction: rawNotif.require_interaction !== undefined ? Boolean(rawNotif.require_interaction) : true,
+        template_present: rawNotif.template_present || 'Ananda {nama_siswa} telah hadir di kelas tepat waktu pukul {jam} WIB.',
+        template_late: rawNotif.template_late || 'Ananda {nama_siswa} telah hadir di kelas pukul {jam} WIB (Status: Terlambat).',
+        template_checkout: rawNotif.template_checkout || 'Ananda {nama_siswa} telah selesai belajar dan keluar kelas pukul {jam} WIB.',
+        template_leave_approved: rawNotif.template_leave_approved || 'Pengajuan {jenis_izin} untuk Ananda {nama_siswa} telah DISETUJUI oleh {penyetuju}.',
+        template_leave_rejected: rawNotif.template_leave_rejected || 'Pengajuan {jenis_izin} untuk Ananda {nama_siswa} DITOLAK oleh {penyetuju}.',
+      };
+
       const announcement = integrations.announcement || {
         message: '',
         type: 'info',
@@ -2280,12 +2300,14 @@ export default async function handler(req: any, res: any, env?: any) {
         ok: true,
         platform: defaultPlatformConfig,
         koka: defaultKokaConfig,
+        notifikasi: defaultNotificationConfig,
         evolution_api: defaultEvolutionConfig,
         announcement,
         platform_stats: platformStats,
         settings: {
           platform_config: defaultPlatformConfig,
           koka_config: defaultKokaConfig,
+          notification_config: defaultNotificationConfig,
           evolution_api_config: defaultEvolutionConfig,
           announcement,
           platform_stats: platformStats,
@@ -2329,6 +2351,11 @@ export default async function handler(req: any, res: any, env?: any) {
           ...currentEvo,
           ...data,
           api_key: finalApiKey,
+        };
+      } else if(section==='notifikasi'){
+        updatedIntegrations.notification_config = {
+          ...(currentIntegrations.notification_config || {}),
+          ...data,
         };
       } else if(section==='announcement'){
         updatedIntegrations.announcement = {

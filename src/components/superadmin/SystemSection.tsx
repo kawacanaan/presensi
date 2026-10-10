@@ -9,10 +9,12 @@ import {
   RefreshCw,
   Sliders,
   CheckCircle2,
-  Info
+  Info,
+  Bell
 } from 'lucide-react';
 import { SystemPlatformTab } from './SystemPlatformTab';
 import { SystemKokaAITab } from './SystemKokaAITab';
+import { SystemNotificationTab } from './SystemNotificationTab';
 import { SystemEvolutionAPITab } from './SystemEvolutionAPITab';
 import { SystemAnnouncementTab } from './SystemAnnouncementTab';
 import { SystemSecurityTab } from './SystemSecurityTab';
@@ -36,6 +38,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
   const [settingsData, setSettingsData] = useState<{
     platform?: any;
     koka?: any;
+    notifikasi?: any;
     evolution_api?: any;
     announcement?: any;
     platform_stats?: any;
@@ -67,6 +70,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
         setSettingsData({
           platform: res.platform || s.platform_config,
           koka: res.koka || s.koka_config,
+          notifikasi: res.notifikasi || s.notification_config,
           evolution_api: res.evolution_api || s.evolution_api_config,
           announcement: res.announcement || s.announcement,
           platform_stats: res.platform_stats || s.platform_stats,
@@ -97,6 +101,13 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
       sublabel: 'Cloudflare AI & Kuota',
       icon: Sparkles,
       color: 'violet',
+    },
+    {
+      id: 'notifikasi',
+      label: 'Notifikasi',
+      sublabel: 'Web Push & Status Bar',
+      icon: Bell,
+      color: 'rose',
     },
     {
       id: 'evolution-api',
@@ -132,7 +143,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
     <div className="space-y-6">
       {/* Tab Navigation Header (Full-View Tabs) */}
       <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
           {tabs.map((tab) => {
             const isActive = currentTab === tab.id;
             const Icon = tab.icon;
@@ -201,6 +212,17 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                 initialConfig={settingsData.koka}
                 onSaved={(updated) =>
                   setSettingsData((prev) => ({ ...prev, koka: updated }))
+                }
+              />
+            )}
+
+            {currentTab === 'notifikasi' && (
+              <SystemNotificationTab
+                call={call}
+                showToast={showToast}
+                initialConfig={settingsData.notifikasi}
+                onSaved={(updated) =>
+                  setSettingsData((prev) => ({ ...prev, notifikasi: updated }))
                 }
               />
             )}

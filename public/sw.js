@@ -75,8 +75,8 @@ self.addEventListener('push', (event) => {
   let payload = {
     title: 'Kawacanaan Presensi',
     body: 'Pemberitahuan presensi baru dari sekolah.',
-    icon: '/pwa-192.png',
-    badge: '/favicon.png',
+    icon: '',
+    badge: '/pwa-192.png',
     tag: 'kawacanaan-attendance',
     url: '/',
     data: { url: '/' },
@@ -102,18 +102,22 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'Kawacanaan Presensi';
   const options = {
     body: payload.body,
-    icon: payload.icon || '/pwa-192.png',
-    badge: payload.badge || '/favicon.png',
+    badge: (payload.badge && String(payload.badge).trim()) ? payload.badge : '/pwa-192.png',
     vibrate: [200, 100, 200, 100, 200],
     tag: payload.tag || `attendance-${Date.now()}`,
     renotify: true,
-    requireInteraction: true,
+    requireInteraction: payload.requireInteraction !== false,
     data: payload.data || { url: payload.url || '/' },
     actions: [
       { action: 'open_portal', title: 'Buka Portal Siswa' },
       { action: 'close', title: 'Tutup' }
     ]
   };
+
+  // Hanya sematkan options.icon (logo besar di sebelah kanan pada Android) jika payload.icon ada dan tidak kosong
+  if (payload.icon && typeof payload.icon === 'string' && payload.icon.trim().length > 0) {
+    options.icon = payload.icon;
+  }
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

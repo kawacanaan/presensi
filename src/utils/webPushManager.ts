@@ -239,12 +239,11 @@ export async function subscribeParentDevice({
         localStorage.setItem(`kawacanaan_push_parent_name_${studentId}`, parentName);
       } catch (_) {}
 
-      // Tampilkan notifikasi konfirmasi langsung di perangkat
+      // Tampilkan notifikasi konfirmasi langsung di perangkat (logo kanan dihapus, badge status bar kiri pakai Kawacanaan emblem)
       try {
         reg.showNotification('Notifikasi Presensi Aktif', {
           body: `Ponsel ${parentName} siap menerima waktu masuk dan keluar kelas Ananda.`,
-          icon: '/pwa-192.png',
-          badge: '/favicon.png',
+          badge: '/pwa-192.png',
         });
       } catch (_) {}
 
