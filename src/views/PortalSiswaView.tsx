@@ -5,6 +5,22 @@ import {
   Home,
   Calendar,
   User,
+  Settings,
+  Sliders,
+  Smartphone,
+  BookOpen,
+  BellRing,
+  Volume2,
+  VolumeX,
+  Vibrate,
+  Phone,
+  ExternalLink,
+  KeyRound,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Send,
+  Shield,
   ArrowLeft,
   ChevronRight,
   ChevronLeft,
@@ -45,6 +61,7 @@ import type { Student, AttendanceRecord, SchoolClass } from '../types';
 import { parseClassQrPayload } from '../utils/classQr';
 import { playChimeSuccess, playChimeWarning } from '../utils/audioFeedback';
 import { getServerNow, formatServerTimeString, formatServerDateString, syncServerTime } from '../utils/serverTime';
+import { KawacanaanEmblem } from '../components/KawacanaanEmblem';
 import {
   getDevicePushStatus,
   requestAdaptiveNativePushPermission,
@@ -53,7 +70,7 @@ import {
   detectDeviceName,
 } from '../utils/webPushManager';
 
-type MobileScreen = 'beranda' | 'absensi-menu' | 'rekap' | 'profil' | 'scanner' | 'detail' | 'izin-sakit';
+type MobileScreen = 'beranda' | 'absensi-menu' | 'rekap' | 'pengaturan' | 'profil' | 'scanner' | 'detail' | 'izin-sakit';
 
 export const PortalSiswaView: React.FC = () => {
   const {
@@ -75,6 +92,7 @@ export const PortalSiswaView: React.FC = () => {
     showToast,
     setActiveView,
     logout,
+    changeOwnPassword,
   } = useApp();
 
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -184,8 +202,26 @@ export const PortalSiswaView: React.FC = () => {
   const [leaveAttachmentName, setLeaveAttachmentName] = useState<string>('');
   const [isSubmittingLeave, setIsSubmittingLeave] = useState<boolean>(false);
 
+  // Preferensi Suara & Haptik
+  const [soundFeedbackEnabled, setSoundFeedbackEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('kawacanaan_sound_feedback') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  const [hapticFeedbackEnabled, setHapticFeedbackEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('kawacanaan_haptic_feedback') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
   // Getar Halus (Haptic Feedback) Helper
   const triggerHaptic = (type: 'success' | 'warning' | 'error' | 'tap' = 'tap') => {
+    if (!hapticFeedbackEnabled) return;
     if (typeof window === 'undefined' || !navigator?.vibrate) return;
     try {
       if (type === 'success') {
@@ -198,6 +234,174 @@ export const PortalSiswaView: React.FC = () => {
         navigator.vibrate(12);
       }
     } catch (_) {}
+  };
+
+  // Tab Pengaturan Siswa: 'akun' | 'aplikasi' | 'bantuan'
+  const [pengaturanTab, setPengaturanTab] = useState<'akun' | 'aplikasi' | 'bantuan'>('akun');
+  const [isSendingTestPush, setIsSendingTestPush] = useState<boolean>(false);
+
+  // Form Ganti Sandi Siswa
+  const [showPasswordSection, setShowPasswordSection] = useState<boolean>(false);
+  const [newPasswordVal, setNewPasswordVal] = useState<string>('');
+  const [confirmPasswordVal, setConfirmPasswordVal] = useState<string>('');
+  const [showPasswordText, setShowPasswordText] = useState<boolean>(false);
+  const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false);
+  const [passwordFeedback, setPasswordFeedback] = useState<{ text: string; type: 'error' | 'success' } | null>(null);
+
+  // Accordion Bantuan State
+  const [activeFaqIndex, setActiveFaqIndex] = useState<number | null>(null);
+
+  // Handler Terpusat Sakelar Push Notifikasi (Digunakan bersama oleh Badge Lonceng di Beranda & Tab Aplikasi di Pengaturan)
+  const handleTogglePushNotification = async () => {
+    triggerHaptic('tap');
+    if (!activeStudent?.id) return;
+
+    // 1. KASUS JIKA SEDANG AKTIF -> MATIKAN NOTIFIKASI (UNSUBSCRIBE SISTEM)
+    if (devicePushActive) {
+      try {
+        try {
+          localStorage.setItem(`kawacanaan_push_user_muted_${activeStudent.id}`, 'true');
+        } catch (_) {}
+        setDevicePushActive(false);
+        await unsubscribeParentDevice(activeStudent.id);
+        showToast('Notifikasi presensi pada perangkat ini telah dinonaktifkan.', 'info');
+      } catch (err: any) {
+        showToast('Gagal mematikan notifikasi: ' + (err?.message || 'Terjadi kesalahan'), 'error');
+      }
+      return;
+    }
+
+    // 2. KASUS JIKA SEDANG MATI -> MINTA IZIN & AKTIFKAN NOTIFIKASI
+    try {
+      localStorage.removeItem(`kawacanaan_push_user_muted_${activeStudent.id}`);
+    } catch (_) {}
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      showToast('Peramban atau perangkat ini tidak mendukung Web Push Notification.', 'error');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      showToast('Izin notifikasi diblokir di browser. Klik ikon gembok/setelan di samping alamat web untuk mengizinkan.', 'error');
+      return;
+    }
+
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        const res = await subscribeParentDevice({
+          studentId: activeStudent.id,
+          schoolId: activeStudent.schoolId || schoolProfile?.id || currentUser?.schoolId,
+          parentName: detectDeviceName(),
+        });
+        if (res.success) {
+          setDevicePushActive(true);
+          triggerHaptic('success');
+          showToast('Notifikasi kehadiran resmi aktif pada perangkat ini!', 'success');
+        } else {
+          showToast(res.message || 'Gagal mendaftarkan langganan notifikasi ke server.', 'error');
+        }
+      } else {
+        showToast('Izin notifikasi belum diberikan pada peramban.', 'info');
+      }
+    } catch (err: any) {
+      showToast('Gagal meminta izin notifikasi: ' + (err?.message || 'Terjadi kendala'), 'error');
+    }
+  };
+
+  // Uji Coba Pengiriman Notifikasi Langsung ke Perangkat Siswa/Orang Tua
+  const handleSendTestPush = async () => {
+    triggerHaptic('tap');
+    if (!devicePushActive) {
+      showToast('Aktifkan push notifikasi terlebih dahulu sebelum melakukan uji coba.', 'warning');
+      return;
+    }
+    setIsSendingTestPush(true);
+    try {
+      const res = await fetch('/api/push-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send_attendance',
+          studentId: activeStudent.id,
+          studentName: activeStudent.nama,
+          className: formatStudentClass(studentDisplayClassName),
+          eventType: 'masuk',
+          timeStr: formatServerTimeString(getServerNow()),
+          status: 'Hadir Tepat Waktu',
+          notes: 'Uji coba penerimaan push notifikasi Kawacanaan.',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && (data.ok || data.sentCount > 0)) {
+        showToast('Notifikasi uji coba berhasil dikirim ke perangkat Anda!', 'success');
+        triggerHaptic('success');
+      } else {
+        // Fallback: Langsung munculkan notifikasi via service worker lokal di browser
+        if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.getRegistration();
+          if (reg) {
+            await reg.showNotification('Kawacanaan Presensi', {
+              body: `Ananda ${activeStudent.nama} (${formatStudentClass(studentDisplayClassName)}) hadir tepat waktu pukul ${formatServerTimeString(getServerNow())} WIB.`,
+              badge: '/pwa-192.png',
+            });
+            showToast('Notifikasi uji coba ditampilkan pada bilah status perangkat!', 'success');
+            triggerHaptic('success');
+            return;
+          }
+        }
+        showToast(data.message || 'Notifikasi uji coba diproses.', 'info');
+      }
+    } catch (err: any) {
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.getRegistration();
+          if (reg) {
+            await reg.showNotification('Kawacanaan Presensi', {
+              body: `Ananda ${activeStudent.nama} (${formatStudentClass(studentDisplayClassName)}) hadir tepat waktu pukul ${formatServerTimeString(getServerNow())} WIB.`,
+              badge: '/pwa-192.png',
+            });
+            showToast('Notifikasi uji coba ditampilkan pada bilah status perangkat!', 'success');
+            triggerHaptic('success');
+            return;
+          }
+        } catch (_) {}
+      }
+      showToast('Gagal mengirimkan notifikasi uji coba: ' + (err?.message || 'Kendala koneksi'), 'error');
+    } finally {
+      setIsSendingTestPush(false);
+    }
+  };
+
+  const handleChangeStudentPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordFeedback(null);
+    if (newPasswordVal.length < 8) {
+      setPasswordFeedback({ text: 'Kata sandi baru minimal 8 karakter.', type: 'error' });
+      return;
+    }
+    if (newPasswordVal !== confirmPasswordVal) {
+      setPasswordFeedback({ text: 'Konfirmasi kata sandi tidak cocok.', type: 'error' });
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const res = await changeOwnPassword(newPasswordVal);
+      if (res.success) {
+        setPasswordFeedback({ text: 'Kata sandi berhasil diperbarui!', type: 'success' });
+        setNewPasswordVal('');
+        setConfirmPasswordVal('');
+        showToast('Kata sandi berhasil diperbarui!', 'success');
+        triggerHaptic('success');
+      } else {
+        setPasswordFeedback({ text: res.message || 'Gagal mengubah kata sandi.', type: 'error' });
+        showToast(res.message || 'Gagal mengubah kata sandi.', 'error');
+        triggerHaptic('error');
+      }
+    } catch (err: any) {
+      setPasswordFeedback({ text: err?.message || 'Terjadi kesalahan sistem.', type: 'error' });
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   // Resolusi akun siswa yang definitif (Sistem Produksi Nyata)
@@ -1459,10 +1663,11 @@ export const PortalSiswaView: React.FC = () => {
                     <div 
                       onClick={() => {
                         triggerHaptic('tap');
-                        navigateTo('profil');
+                        setPengaturanTab('akun');
+                        navigateTo('pengaturan');
                       }}
                       className="relative w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-600 p-0.5 shadow-md shadow-blue-500/20 shrink-0 overflow-hidden border-2 border-white cursor-pointer active:scale-95 transition-transform"
-                      title="Lihat Profil Siswa"
+                      title="Lihat Profil & Pengaturan Siswa"
                     >
                       {customStudentAvatar ? (
                         <img
@@ -1513,61 +1718,7 @@ export const PortalSiswaView: React.FC = () => {
                   {/* Notification Toggle Button (Sakelar On / Off Push Notifikasi) */}
                   <button
                     type="button"
-                    onClick={async () => {
-                      triggerHaptic('tap');
-                      if (!activeStudent?.id) return;
-
-                      // 1. KASUS JIKA SEDANG AKTIF -> MATIKAN NOTIFIKASI (UNSUBSCRIBE SISTEM)
-                      if (devicePushActive) {
-                        try {
-                          try {
-                            localStorage.setItem(`kawacanaan_push_user_muted_${activeStudent.id}`, 'true');
-                          } catch (_) {}
-                          setDevicePushActive(false);
-                          await unsubscribeParentDevice(activeStudent.id);
-                          showToast('Notifikasi presensi pada perangkat ini telah dinonaktifkan.', 'info');
-                        } catch (err: any) {
-                          showToast('Gagal mematikan notifikasi: ' + (err?.message || 'Terjadi kesalahan'), 'error');
-                        }
-                        return;
-                      }
-
-                      // 2. KASUS JIKA SEDANG MATI -> MINTA IZIN & AKTIFKAN NOTIFIKASI
-                      try {
-                        localStorage.removeItem(`kawacanaan_push_user_muted_${activeStudent.id}`);
-                      } catch (_) {}
-                      if (typeof window === 'undefined' || !('Notification' in window)) {
-                        showToast('Peramban atau perangkat ini tidak mendukung Web Push Notification.', 'error');
-                        return;
-                      }
-
-                      if (Notification.permission === 'denied') {
-                        showToast('Izin notifikasi diblokir di browser. Klik ikon gembok/setelan di samping alamat web untuk mengizinkan.', 'error');
-                        return;
-                      }
-
-                      try {
-                        const perm = await Notification.requestPermission();
-                        if (perm === 'granted') {
-                          const res = await subscribeParentDevice({
-                            studentId: activeStudent.id,
-                            schoolId: activeStudent.schoolId || schoolProfile?.id || currentUser?.schoolId,
-                            parentName: detectDeviceName(),
-                          });
-                          if (res.success) {
-                            setDevicePushActive(true);
-                            triggerHaptic('success');
-                            showToast('Notifikasi kehadiran resmi aktif pada perangkat ini!', 'success');
-                          } else {
-                            showToast(res.message || 'Gagal mendaftarkan langganan notifikasi ke server.', 'error');
-                          }
-                        } else {
-                          showToast('Izin notifikasi belum diberikan pada peramban.', 'info');
-                        }
-                      } catch (err: any) {
-                        showToast('Gagal meminta izin notifikasi: ' + (err?.message || 'Terjadi kendala'), 'error');
-                      }
-                    }}
+                    onClick={handleTogglePushNotification}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black transition-all cursor-pointer shrink-0 shadow-2xs border ${
                       devicePushActive
                         ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 shadow-blue-500/10'
@@ -3302,185 +3453,807 @@ export const PortalSiswaView: React.FC = () => {
           )}
 
           {/* ========================================================================= */}
-          {/* SCREEN 6: PROFIL (PROFILE VIEW) */}
+          {/* SCREEN 6: PENGATURAN (SETTINGS VIEW WITH 3 TABS: AKUN, APLIKASI, BANTUAN) */}
           {/* ========================================================================= */}
-          {currentScreen === 'profil' && (
+          {(currentScreen === 'pengaturan' || currentScreen === 'profil') && (
             <div className="p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
-              {/* Header */}
-              <div className="pt-1">
-                <h2 className="text-base font-black text-slate-900 tracking-tight">
-                  Profil
-                </h2>
+              {/* Header Pengaturan */}
+              <div className="pt-1 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                      <Settings size={20} className="text-blue-600" />
+                      <span>Pengaturan</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      Kelola profil akun, notifikasi aplikasi, dan panduan sistem
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3 TAB SEGMENTED CONTROL: Akun | Aplikasi | Bantuan */}
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100/90 rounded-2xl text-xs font-bold border border-slate-200/80 shadow-2xs">
+                  {/* Tab 1: Akun */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('tap');
+                      setPengaturanTab('akun');
+                    }}
+                    className={`py-2 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      pengaturanTab === 'akun'
+                        ? 'bg-white text-blue-700 font-black shadow-xs border border-slate-200/50'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 font-bold'
+                    }`}
+                  >
+                    <User size={15} />
+                    <span>Akun</span>
+                  </button>
+
+                  {/* Tab 2: Aplikasi */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('tap');
+                      setPengaturanTab('aplikasi');
+                    }}
+                    className={`py-2 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      pengaturanTab === 'aplikasi'
+                        ? 'bg-white text-blue-700 font-black shadow-xs border border-slate-200/50'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 font-bold'
+                    }`}
+                  >
+                    <Sliders size={15} />
+                    <span>Aplikasi</span>
+                  </button>
+
+                  {/* Tab 3: Bantuan */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('tap');
+                      setPengaturanTab('bantuan');
+                    }}
+                    className={`py-2 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      pengaturanTab === 'bantuan'
+                        ? 'bg-white text-blue-700 font-black shadow-xs border border-slate-200/50'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 font-bold'
+                    }`}
+                  >
+                    <HelpCircle size={15} />
+                    <span>Bantuan</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Large Avatar & Name with Image Upload */}
-              <div className="flex flex-col items-center justify-center text-center space-y-2 pt-2">
-                {/* Hidden File Input for Device Photo / Album Upload */}
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarChange}
-                  className="hidden"
-                />
+              {/* ----------------------------------------------------------------- */}
+              {/* TAB 1: AKUN SISWA */}
+              {/* ----------------------------------------------------------------- */}
+              {pengaturanTab === 'akun' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  {/* Large Avatar & Name with Image Upload */}
+                  <div className="flex flex-col items-center justify-center text-center space-y-2 pt-1 bg-white border border-slate-100 rounded-3xl p-4 shadow-2xs">
+                    {/* Hidden File Input for Device Photo / Album Upload */}
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      className="hidden"
+                    />
 
-                <div className="relative group">
-                  <div
-                    onClick={() => photoInputRef.current?.click()}
-                    className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 p-1 shadow-lg shrink-0 overflow-hidden border-2 border-white cursor-pointer relative active:scale-95 transition-transform"
-                    title="Klik untuk memilih foto dari album/perangkat"
-                  >
-                    {customStudentAvatar ? (
-                      <img
-                        src={customStudentAvatar}
-                        alt={activeStudent.nama}
-                        className="w-full h-full rounded-full object-cover"
+                    <div className="relative group">
+                      <div
+                        onClick={() => photoInputRef.current?.click()}
+                        className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 p-1 shadow-lg shrink-0 overflow-hidden border-2 border-white cursor-pointer relative active:scale-95 transition-transform"
+                        title="Klik untuk memilih foto dari album/perangkat"
+                      >
+                        {customStudentAvatar ? (
+                          <img
+                            src={customStudentAvatar}
+                            alt={activeStudent.nama}
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
+                            <svg viewBox="0 0 100 100" className="w-full h-full">
+                              <circle cx="50" cy="50" r="48" fill="#93C5FD" />
+                              <path d="M22 92 C22 72 35 68 50 68 C65 68 78 72 78 92 Z" fill="#1E3A8A" />
+                              <polygon points="50,68 44,82 56,82" fill="#FFFFFF" />
+                              <polygon points="50,74 47,88 53,88" fill="#EF4444" />
+                              <circle cx="50" cy="45" r="22" fill="#FDE047" />
+                              <path d="M28 42 C28 26 40 20 50 20 C60 20 72 26 72 42 C72 48 70 52 70 52 C70 52 64 36 50 36 C36 36 30 52 30 52 Z" fill="#451A03" />
+                              <circle cx="43" cy="44" r="3" fill="#1E293B" />
+                              <circle cx="57" cy="44" r="3" fill="#1E293B" />
+                              <path d="M46 51 Q50 55 54 51" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" fill="none" />
+                              <circle cx="39" cy="48" r="2.5" fill="#FCA5A5" />
+                              <circle cx="61" cy="48" r="2.5" fill="#FCA5A5" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Camera Badge Button on Avatar */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          photoInputRef.current?.click();
+                        }}
+                        className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-md border-2 border-white transition-all active:scale-90 cursor-pointer"
+                        title="Unggah / Ganti Foto Profil"
+                      >
+                        <Camera size={14} />
+                      </button>
+                    </div>
+
+                    {/* Photo Action Buttons */}
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => photoInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
+                      >
+                        <Camera size={13} />
+                        <span>{customStudentAvatar ? 'Ganti Foto' : 'Pilih Foto Profil'}</span>
+                      </button>
+                      {customStudentAvatar && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveAvatar}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                          title="Kembalikan ke avatar awal"
+                        >
+                          <RotateCcw size={12} />
+                          <span>Reset</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 leading-tight">
+                        {activeStudent.nama}
+                      </h3>
+                      <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                        {formatStudentClass(studentDisplayClassName)} • {schoolProfile.namaSekolah || 'SD Cideng 07'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Profile Details List Card */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs divide-y divide-slate-100">
+                    <div className="pb-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                        Biodata & Status Akademik
+                      </span>
+                    </div>
+
+                    {/* NISN */}
+                    <div className="py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
+                          <User size={16} />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-500">NISN</span>
+                      </div>
+                      <span className="text-xs font-black text-slate-900">
+                        {activeStudent.nisn || '3149271621'}
+                      </span>
+                    </div>
+
+                    {/* Sekolah */}
+                    <div className="py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
+                          <Building size={16} />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-500">Sekolah</span>
+                      </div>
+                      <span className="text-xs font-black text-slate-900">
+                        {schoolProfile.namaSekolah || 'SD Cideng 07'}
+                      </span>
+                    </div>
+
+                    {/* Kelas */}
+                    <div className="py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
+                          <GraduationCap size={16} />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-500">Kelas</span>
+                      </div>
+                      <span className="text-xs font-black text-slate-900">
+                        {formatStudentClass(studentDisplayClassName)}
+                      </span>
+                    </div>
+
+                    {/* Tahun Ajaran */}
+                    <div className="py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
+                          <CalendarDays size={16} />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-500">Tahun Ajaran</span>
+                      </div>
+                      <span className="text-xs font-black text-slate-900">
+                        {schoolProfile.tahunAjaran || '2026/2027'}
+                      </span>
+                    </div>
+
+                    {/* Nama Wali */}
+                    {activeStudent.namaWali && (
+                      <div className="py-2.5 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
+                            <User size={16} />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-500">Wali Murid</span>
+                        </div>
+                        <span className="text-xs font-black text-slate-900">
+                          {activeStudent.namaWali}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Status Akun */}
+                    <div className="py-2.5 flex items-center justify-between last:pb-0">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
+                          <ShieldCheck size={16} />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-500">Status Akun</span>
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span>Aktif Terdaftar</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Keamanan & Ubah Password Akun Siswa */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        setShowPasswordSection((prev) => !prev);
+                        setPasswordFeedback(null);
+                      }}
+                      className="w-full flex items-center justify-between text-left cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                          <KeyRound size={16} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 leading-tight">
+                            Keamanan & Kata Sandi
+                          </h4>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {showPasswordSection ? 'Tutup formulir ganti sandi' : 'Ubah kata sandi akun siswa'}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight
+                        size={16}
+                        className={`text-slate-400 transition-transform ${showPasswordSection ? 'rotate-90' : ''}`}
                       />
-                    ) : (
-                      <div className="w-full h-full rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
-                        <svg viewBox="0 0 100 100" className="w-full h-full">
-                          <circle cx="50" cy="50" r="48" fill="#93C5FD" />
-                          {/* Body */}
-                          <path d="M22 92 C22 72 35 68 50 68 C65 68 78 72 78 92 Z" fill="#1E3A8A" />
-                          <polygon points="50,68 44,82 56,82" fill="#FFFFFF" />
-                          <polygon points="50,74 47,88 53,88" fill="#EF4444" />
-                          {/* Head */}
-                          <circle cx="50" cy="45" r="22" fill="#FDE047" />
-                          {/* Hair */}
-                          <path d="M28 42 C28 26 40 20 50 20 C60 20 72 26 72 42 C72 48 70 52 70 52 C70 52 64 36 50 36 C36 36 30 52 30 52 Z" fill="#451A03" />
-                          {/* Eyes */}
-                          <circle cx="43" cy="44" r="3" fill="#1E293B" />
-                          <circle cx="57" cy="44" r="3" fill="#1E293B" />
-                          <path d="M46 51 Q50 55 54 51" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" fill="none" />
-                          <circle cx="39" cy="48" r="2.5" fill="#FCA5A5" />
-                          <circle cx="61" cy="48" r="2.5" fill="#FCA5A5" />
-                        </svg>
+                    </button>
+
+                    {showPasswordSection && (
+                      <form onSubmit={handleChangeStudentPassword} className="pt-2 border-t border-slate-100 space-y-2.5 animate-in fade-in duration-150">
+                        {passwordFeedback && (
+                          <div className={`p-2.5 rounded-xl text-xs font-bold flex items-start gap-2 ${
+                            passwordFeedback.type === 'success'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                              : 'bg-rose-50 text-rose-800 border border-rose-200'
+                          }`}>
+                            {passwordFeedback.type === 'success' ? (
+                              <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                            ) : (
+                              <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+                            )}
+                            <span>{passwordFeedback.text}</span>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                            Kata Sandi Baru
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showPasswordText ? 'text' : 'password'}
+                              value={newPasswordVal}
+                              onChange={(e) => setNewPasswordVal(e.target.value)}
+                              placeholder="Minimal 8 karakter"
+                              required
+                              className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-9 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPasswordText((v) => !v)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                            >
+                              {showPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                            Konfirmasi Kata Sandi Baru
+                          </label>
+                          <input
+                            type={showPasswordText ? 'text' : 'password'}
+                            value={confirmPasswordVal}
+                            onChange={(e) => setConfirmPasswordVal(e.target.value)}
+                            placeholder="Ketik ulang kata sandi baru"
+                            required
+                            className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isChangingPassword}
+                          className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+                        >
+                          <Lock size={13} />
+                          <span>{isChangingPassword ? 'Menyimpan Sandi...' : 'Perbarui Kata Sandi'}</span>
+                        </button>
+                      </form>
+                    )}
+                  </div>
+
+                  {/* Profile Bottom Actions */}
+                  {currentUser?.role === 'SISWA' ? (
+                    <div className="pt-1">
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Apakah Anda yakin ingin keluar dari akun siswa ini?')) {
+                            logout();
+                          }
+                        }}
+                        className="w-full py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                      >
+                        <LogOut size={16} />
+                        <span>Keluar dari Akun Siswa</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="pt-1">
+                      <button
+                        onClick={() => setActiveView('dashboard')}
+                        className="w-full py-2.5 rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                      >
+                        <ArrowLeft size={16} />
+                        <span>Kembali ke Dashboard Utama</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ----------------------------------------------------------------- */}
+              {/* TAB 2: APLIKASI (PENGATURAN NOTIFIKASI SAMA SEPERTI BADGE LONCENG) */}
+              {/* ----------------------------------------------------------------- */}
+              {pengaturanTab === 'aplikasi' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  {/* HERO NOTIFIKASI CARD (FUNGSI PERSIS SAMA SEPERTI BADGE LONCENG) */}
+                  <div className={`rounded-3xl border p-4.5 space-y-3.5 transition-all shadow-xs ${
+                    devicePushActive
+                      ? 'bg-gradient-to-br from-blue-50 via-white to-sky-50/50 border-blue-200/90'
+                      : 'bg-white border-slate-200/90'
+                  }`}>
+                    {/* Header Notifikasi */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs transition-colors ${
+                          devicePushActive
+                            ? 'bg-blue-600 text-white shadow-blue-500/25'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          <BellRing size={22} className={devicePushActive ? 'animate-bounce' : ''} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-black text-slate-900 leading-tight">
+                              Push Notifikasi Presensi
+                            </h3>
+                            {devicePushActive ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>Notif Aktif</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                <span>Notif Mati</span>
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-snug">
+                            Notifikasi resmi kehadiran di bilah status ponsel (status bar Android).
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SAKELAR UTAMA PUSH NOTIFIKASI (FUNGSI IDENTIK DENGAN BADGE LONCENG BERANDA) */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-black text-slate-900 block">
+                          {devicePushActive ? 'Status Notifikasi Aktif' : 'Status Notifikasi Nonaktif'}
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium block">
+                          {devicePushActive
+                            ? 'Ketuk sakelar untuk menonaktifkan notifikasi'
+                            : 'Ketuk sakelar untuk meminta izin & mengaktifkan'}
+                        </span>
+                      </div>
+
+                      {/* Interactive Toggle Switch */}
+                      <button
+                        type="button"
+                        id="btn-toggle-notification-settings"
+                        onClick={handleTogglePushNotification}
+                        className={`relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          devicePushActive ? 'bg-blue-600' : 'bg-slate-300'
+                        }`}
+                        title={devicePushActive ? 'Klik untuk mematikan notifikasi' : 'Klik untuk mengaktifkan notifikasi'}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            devicePushActive ? 'translate-x-6' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Tombol Uji Coba Notifikasi Langsung */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <span className="text-[11px] font-bold text-slate-700 block">
+                          Tes Tampilan Bilah Status
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium block">
+                          Cek logo Kawacanaan di status bar ponsel
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSendTestPush}
+                        disabled={!devicePushActive || isSendingTestPush}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-black text-xs transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                        title={!devicePushActive ? 'Aktifkan notifikasi terlebih dahulu' : 'Kirim tes notifikasi'}
+                      >
+                        {isSendingTestPush ? (
+                          <>
+                            <RefreshCw size={13} className="animate-spin" />
+                            <span>Mengirim...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send size={13} />
+                            <span>Kirim Uji Coba</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* KARTU STATUS IZIN PERAMBAN & PERANGKAT */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                      Informasi Perizinan & Perangkat
+                    </span>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 block">
+                          Izin Browser
+                        </span>
+                        <div className="flex items-center gap-1.5 font-black text-slate-900">
+                          {typeof window !== 'undefined' && 'Notification' in window ? (
+                            Notification.permission === 'granted' ? (
+                              <span className="text-emerald-600 flex items-center gap-1">
+                                <CheckCircle2 size={13} />
+                                <span>Diizinkan</span>
+                              </span>
+                            ) : Notification.permission === 'denied' ? (
+                              <span className="text-rose-600 flex items-center gap-1">
+                                <XCircle size={13} />
+                                <span>Diblokir</span>
+                              </span>
+                            ) : (
+                              <span className="text-amber-600 flex items-center gap-1">
+                                <Clock size={13} />
+                                <span>Belum Meminta</span>
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-slate-500">Tidak Didukung</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 block">
+                          Perangkat Terdeteksi
+                        </span>
+                        <span className="font-black text-slate-900 truncate block text-[11px]">
+                          {detectDeviceName()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Alert jika perizinan browser diblokir */}
+                    {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'denied' && (
+                      <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
+                        <div className="flex items-center gap-1.5 font-black text-amber-800">
+                          <AlertTriangle size={14} className="shrink-0" />
+                          <span>Izin Notifikasi Diblokir Browser</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-amber-800/90 font-medium">
+                          Browser Anda telah memblokir notifikasi untuk situs ini. Untuk mengaktifkannya kembali, ketuk ikon gembok / setelan di bilah alamat URL peramban, lalu pilih <b>Izinkan Notifikasi</b>.
+                        </p>
                       </div>
                     )}
                   </div>
 
-                  {/* Camera Badge Button on Avatar */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      photoInputRef.current?.click();
-                    }}
-                    className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-md border-2 border-white transition-all active:scale-90 cursor-pointer"
-                    title="Unggah / Ganti Foto Profil"
-                  >
-                    <Camera size={14} />
-                  </button>
-                </div>
+                  {/* KARTU PREFERENSI SUARA & GETARAN */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3.5">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                      Preferensi Interaksi & Feedback
+                    </span>
 
-                {/* Photo Action Buttons */}
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => photoInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
-                  >
-                    <Camera size={13} />
-                    <span>{customStudentAvatar ? 'Ganti Foto' : 'Pilih Foto Profil'}</span>
-                  </button>
-                  {customStudentAvatar && (
+                    {/* 1. Suara Chime Presensi */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                          {soundFeedbackEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 leading-tight">
+                            Suara Feedback Presensi
+                          </h4>
+                          <span className="text-[11px] text-slate-500 font-medium block">
+                            Nada lonceng saat scan presensi berhasil
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {soundFeedbackEnabled && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playChimeSuccess();
+                              triggerHaptic('tap');
+                            }}
+                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 px-2 py-1 rounded-lg bg-blue-50 cursor-pointer"
+                            title="Uji dengar nada suara"
+                          >
+                            Uji
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = !soundFeedbackEnabled;
+                            setSoundFeedbackEnabled(next);
+                            try {
+                              localStorage.setItem('kawacanaan_sound_feedback', String(next));
+                            } catch (_) {}
+                            triggerHaptic('tap');
+                            if (next) playChimeSuccess();
+                          }}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                            soundFeedbackEnabled ? 'bg-blue-600' : 'bg-slate-300'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                              soundFeedbackEnabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 2. Getaran Haptik */}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                          <Vibrate size={16} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 leading-tight">
+                            Getar Halus (Haptic)
+                          </h4>
+                          <span className="text-[11px] text-slate-500 font-medium block">
+                            Getaran lembut saat menyentuh tombol
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {hapticFeedbackEnabled && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                                navigator.vibrate(45);
+                              }
+                            }}
+                            className="text-[10px] font-bold text-purple-600 hover:text-purple-800 px-2 py-1 rounded-lg bg-purple-50 cursor-pointer"
+                            title="Uji coba getar"
+                          >
+                            Uji
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = !hapticFeedbackEnabled;
+                            setHapticFeedbackEnabled(next);
+                            try {
+                              localStorage.setItem('kawacanaan_haptic_feedback', String(next));
+                            } catch (_) {}
+                            if (next && typeof navigator !== 'undefined' && navigator.vibrate) {
+                              navigator.vibrate(25);
+                            }
+                          }}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                            hapticFeedbackEnabled ? 'bg-blue-600' : 'bg-slate-300'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                              hapticFeedbackEnabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ----------------------------------------------------------------- */}
+              {/* TAB 3: BANTUAN & PANDUAN SISTEM (TAB TAMBAHAN) */}
+              {/* ----------------------------------------------------------------- */}
+              {pengaturanTab === 'bantuan' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  {/* CARD PANDUAN CEPAT PRESENSI */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3">
+                    <div className="flex items-center gap-2 text-slate-900">
+                      <BookOpen size={17} className="text-blue-600" />
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                        Panduan Penggunaan Presensi Siswa
+                      </h3>
+                    </div>
+
+                    <div className="space-y-2">
+                      {/* Panduan 1: Scan QR */}
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
+                        <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+                          <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">
+                            1
+                          </span>
+                          <span>Cara Melakukan Scan Presensi QR</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                          Tekan tombol bundar <b>SCAN</b> di tengah bilah menu bawah. Arahkan kamera ponsel ke QR Code kelas di papan tulis atau laptop guru. Saat berhasil, sistem membunyikan lonceng konfirmasi.
+                        </p>
+                      </div>
+
+                      {/* Panduan 2: Jam Masuk & Pulang */}
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
+                        <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+                          <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">
+                            2
+                          </span>
+                          <span>Ketentuan Jam Masuk & Keterlambatan</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                          Scan presensi masuk dilakukan sebelum pukul <b>07:00 WIB</b> untuk status <i>Tepat Waktu</i>. Scan di atas jam tersebut otomatis tercatat <i>Terlambat</i>. Presensi pulang dapat dilakukan setelah pukul <b>14:00 WIB</b>.
+                        </p>
+                      </div>
+
+                      {/* Panduan 3: Izin & Sakit */}
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
+                        <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+                          <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">
+                            3
+                          </span>
+                          <span>Pengajuan Surat Izin / Sakit Mandiri</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                          Jika berhalangan hadir, buka menu <b>Presensi</b> lalu pilih <b>Ajukan Izin / Sakit</b>. Isi tanggal, alasan, dan lampirkan foto surat dokter. Pengajuan akan langsung masuk ke panel Wali Kelas untuk diverifikasi.
+                        </p>
+                      </div>
+
+                      {/* Panduan 4: Syarat Kenaikan Kelas */}
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
+                        <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+                          <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">
+                            4
+                          </span>
+                          <span>Standar Kehadiran Buku Rapor</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 leading-relaxed pl-7">
+                          Standar minimal kehadiran semester untuk kenaikan kelas adalah <b>85%</b> hari efektif pembelajaran. Pantau kemajuan Anda secara berkala pada menu <b>Rekap</b>.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* KARTU KONTAK SEKOLAH & WALI KELAS */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                      Kontak Bantuan & Wali Kelas
+                    </span>
+
+                    <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-100 flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <GraduationCap size={18} />
+                      </div>
+                      <div className="space-y-0.5">
+                        <h4 className="text-xs font-black text-slate-900">
+                          Wali Kelas {formatStudentClass(studentDisplayClassName)}
+                        </h4>
+                        <p className="text-[11px] text-slate-600 leading-relaxed">
+                          Hubungi Wali Kelas Anda jika terdapat kendala scan QR atau permohonan reset presensi harian.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                      <span className="text-slate-500 font-medium">Layanan Presensi Sekolah</span>
+                      <span className="font-bold text-slate-800">{schoolProfile.namaSekolah || 'SD Cideng 07'}</span>
+                    </div>
+                  </div>
+
+                  {/* TENTANG APLIKASI & PEMBARUAN SISTEM */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <KawacanaanEmblem size={40} />
+                      <div>
+                        <h4 className="text-xs font-black text-slate-900">
+                          Kawacanaan Smart School
+                        </h4>
+                        <span className="text-[10px] text-slate-400 font-bold block">
+                          Versi 3.2.0 • Progressive Web App (PWA)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-slate-600 font-medium">Konektivitas Cloud</span>
+                      <span className="inline-flex items-center gap-1 font-black text-emerald-600">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Online Realtime</span>
+                      </span>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={handleRemoveAvatar}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all active:scale-95 cursor-pointer"
-                      title="Kembalikan ke avatar awal"
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        showToast('Memperbarui berkas aplikasi & memuat ulang...', 'info');
+                        setTimeout(() => {
+                          window.location.reload();
+                        }, 500);
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
                     >
-                      <RotateCcw size={12} />
-                      <span>Reset</span>
+                      <RefreshCw size={13} />
+                      <span>Bersihkan Cache & Muat Ulang Aplikasi</span>
                     </button>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="text-base font-black text-slate-900 leading-tight">
-                    {activeStudent.nama}
-                  </h3>
-                  <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                    {formatStudentClass(studentDisplayClassName)} • {schoolProfile.namaSekolah || 'SD Cideng 07'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Profile Details List Card */}
-              <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs divide-y divide-slate-100">
-                {/* NISN */}
-                <div className="py-2.5 flex items-center justify-between first:pt-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
-                      <User size={16} />
-                    </div>
-                    <span className="text-xs font-semibold text-slate-500">NISN</span>
                   </div>
-                  <span className="text-xs font-black text-slate-900">
-                    {activeStudent.nisn || '3149271621'}
-                  </span>
-                </div>
-
-                {/* Sekolah */}
-                <div className="py-2.5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
-                      <Building size={16} />
-                    </div>
-                    <span className="text-xs font-semibold text-slate-500">Sekolah</span>
-                  </div>
-                  <span className="text-xs font-black text-slate-900">
-                    {schoolProfile.namaSekolah || 'SD Cideng 07'}
-                  </span>
-                </div>
-
-                {/* Kelas */}
-                <div className="py-2.5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
-                      <GraduationCap size={16} />
-                    </div>
-                    <span className="text-xs font-semibold text-slate-500">Kelas</span>
-                  </div>
-                  <span className="text-xs font-black text-slate-900">
-                    {formatStudentClass(studentDisplayClassName)}
-                  </span>
-                </div>
-
-                {/* Tahun Ajaran */}
-                <div className="py-2.5 flex items-center justify-between last:pb-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
-                      <CalendarDays size={16} />
-                    </div>
-                    <span className="text-xs font-semibold text-slate-500">Tahun Ajaran</span>
-                  </div>
-                  <span className="text-xs font-black text-slate-900">
-                    {schoolProfile.tahunAjaran || '2026/2027'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Profile Bottom Actions */}
-              {currentUser?.role === 'SISWA' ? (
-                <div className="pt-2">
-                  <button
-                    onClick={logout}
-                    className="w-full py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
-                  >
-                    <LogOut size={16} />
-                    <span>Keluar dari Akun Siswa</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="pt-2">
-                  <button
-                    onClick={() => setActiveView('dashboard')}
-                    className="w-full py-2.5 rounded-2xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
-                  >
-                    <ArrowLeft size={16} />
-                    <span>Kembali ke Dashboard Utama</span>
-                  </button>
                 </div>
               )}
             </div>
@@ -3946,21 +4719,21 @@ export const PortalSiswaView: React.FC = () => {
             <span className="text-[11px] tracking-tight font-bold">Rekap</span>
           </button>
 
-          {/* 5. Profil */}
+          {/* 5. Pengaturan (Menggantikan menu Profil) */}
           <button
-            id="nav-btn-profil"
+            id="nav-btn-pengaturan"
             onClick={() => {
               triggerHaptic('tap');
-              setCurrentScreen('profil');
+              setCurrentScreen('pengaturan');
             }}
             className={`flex flex-col items-center justify-center gap-1 w-full py-1 rounded-xl transition-all cursor-pointer active:scale-95 ${
-              currentScreen === 'profil'
+              ['pengaturan', 'profil'].includes(currentScreen)
                 ? 'text-blue-600 font-black'
                 : 'text-slate-400 hover:text-slate-600 font-medium'
             }`}
           >
-            <User size={22} strokeWidth={currentScreen === 'profil' ? 2.5 : 2} />
-            <span className="text-[11px] tracking-tight font-bold">Profil</span>
+            <Settings size={22} strokeWidth={['pengaturan', 'profil'].includes(currentScreen) ? 2.5 : 2} />
+            <span className="text-[11px] tracking-tight font-bold">Pengaturan</span>
           </button>
         </nav>
 
