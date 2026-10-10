@@ -36,6 +36,10 @@ import {
   AlertTriangle,
   HeartPulse,
   ShieldAlert,
+  BarChart3,
+  TrendingUp,
+  PieChart,
+  Filter,
 } from 'lucide-react';
 import type { Student, AttendanceRecord, SchoolClass } from '../types';
 import { parseClassQrPayload } from '../utils/classQr';
@@ -48,7 +52,7 @@ import {
   detectDeviceName,
 } from '../utils/webPushManager';
 
-type MobileScreen = 'beranda' | 'absensi-menu' | 'profil' | 'scanner' | 'riwayat' | 'detail' | 'izin-sakit';
+type MobileScreen = 'beranda' | 'absensi-menu' | 'rekap' | 'profil' | 'scanner' | 'riwayat' | 'detail' | 'izin-sakit';
 
 export const PortalSiswaView: React.FC = () => {
   const {
@@ -118,6 +122,17 @@ export const PortalSiswaView: React.FC = () => {
 
   // Month selector modal toggle
   const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false);
+
+  // Rekap Screen State (Harian, Mingguan, Bulanan, Semester)
+  const [rekapTab, setRekapTab] = useState<'harian' | 'mingguan' | 'bulanan' | 'semester'>('harian');
+  const [rekapDate, setRekapDate] = useState<string>(() =>
+    formatServerDateString(getServerNow())
+  );
+  const [rekapWeekOffset, setRekapWeekOffset] = useState<number>(0);
+  const [rekapSemester, setRekapSemester] = useState<'ganjil' | 'genap'>(() => {
+    const d = getServerNow();
+    return d.getMonth() >= 6 ? 'ganjil' : 'genap';
+  });
 
   // Camera Scanner Ref & State for Screen 2
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -461,11 +476,212 @@ export const PortalSiswaView: React.FC = () => {
     return days.sort((a, b) => b.date.localeCompare(a.date));
   }, [activeStudent, selectedMonth, selectedYear, attendanceRecords, runningDate, getDateStatus]);
 
+  // Helper navigasi tanggal Rekap Harian
+  const adjustDateByDays = (baseDateStr: string, days: number): string => {
+    try {
+      const [y, m, d] = baseDateStr.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      dt.setDate(dt.getDate() + days);
+      return formatServerDateString(dt);
+    } catch {
+      return baseDateStr;
+    }
+  };
+
+  // Rekap Harian Data
+  const rekapDayRecord = useMemo(() => {
+    if (!activeStudent) return undefined;
+    return attendanceRecords.find(
+      (r) => isRecordForStudent(r) && r.date === rekapDate && (!r.type || r.type === 'DAILY')
+    );
+  }, [activeStudent, isRecordForStudent, rekapDate, attendanceRecords]);
+
+  const rekapSubjectRecords = useMemo(() => {
+    if (!activeStudent) return [];
+    return attendanceRecords.filter(
+      (r) => isRecordForStudent(r) && r.date === rekapDate && r.type === 'SUBJECT'
+    );
+  }, [activeStudent, isRecordForStudent, rekapDate, attendanceRecords]);
+
+  const rekapDayLeave = useMemo(() => {
+    if (!activeStudent || !leaveRequests) return undefined;
+    return leaveRequests.find(
+      (l) => l.studentId === activeStudent.id && l.startDate <= rekapDate && l.endDate >= rekapDate
+    );
+  }, [activeStudent, leaveRequests, rekapDate]);
+
+  const rekapDayStatus = useMemo(() => {
+    return getDateStatus(rekapDate);
+  }, [rekapDate, getDateStatus]);
+
+  // Rekap Mingguan Data
+  const rekapWeeklyData = useMemo(() => {
+    const base = getServerNow();
+    const day = base.getDay();
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    const monday = new Date(base.getFullYear(), base.getMonth(), base.getDate() + diffToMon + (rekapWeekOffset * 7));
+
+    const dayNames = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    let hadir = 0;
+    let terlambat = 0;
+    let izin = 0;
+    let sakit = 0;
+    let alfa = 0;
+    let effectiveDays = 0;
+
+    const days = [0, 1, 2, 3, 4, 5].map((dOffset) => {
+      const cur = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + dOffset);
+      const dateStr = formatServerDateString(cur);
+      const rec = attendanceRecords.find(
+        (r) => isRecordForStudent(r) && r.date === dateStr && (!r.type || r.type === 'DAILY')
+      );
+      const isFuture = dateStr > runningDate;
+      const statusInfo = getDateStatus(dateStr);
+
+      if (statusInfo.isEffective && !isFuture) {
+        effectiveDays++;
+      }
+
+      if (rec) {
+        if (rec.status === 'Hadir') hadir++;
+        else if (rec.status === 'Terlambat') { hadir++; terlambat++; }
+        else if (rec.status === 'Izin') izin++;
+        else if (rec.status === 'Sakit') sakit++;
+        else if (rec.status === 'Alfa') alfa++;
+      }
+
+      return {
+        date: dateStr,
+        dayName: dayNames[dOffset],
+        dateObj: cur,
+        formattedShort: `${cur.getDate()} ${monthNames[cur.getMonth()].slice(0, 3)}`,
+        record: rec,
+        isFuture,
+        isEffective: statusInfo.isEffective,
+        holidayName: statusInfo.holidayName,
+      };
+    });
+
+    const endDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 5);
+    const rangeLabel = `${monday.getDate()} ${monthNames[monday.getMonth()].slice(0, 3)} - ${endDate.getDate()} ${monthNames[endDate.getMonth()].slice(0, 3)} ${endDate.getFullYear()}`;
+    const rate = effectiveDays > 0 ? Math.min(100, Math.round((hadir / effectiveDays) * 100)) : 100;
+
+    return {
+      days,
+      rangeLabel,
+      hadir,
+      terlambat,
+      izin,
+      sakit,
+      alfa,
+      effectiveDays,
+      rate,
+    };
+  }, [rekapWeekOffset, attendanceRecords, isRecordForStudent, runningDate, getDateStatus, monthNames]);
+
+  // Rekap Bulanan Effective Days & Rate
+  const monthlyEffectiveDays = useMemo(() => {
+    return historyList.filter((d) => d.isEffective && !d.isFuture).length;
+  }, [historyList]);
+
+  const monthlyRate = useMemo(() => {
+    if (monthlyEffectiveDays === 0) return 100;
+    return Math.min(100, Math.round((monthlyStats.hadir / monthlyEffectiveDays) * 100));
+  }, [monthlyStats.hadir, monthlyEffectiveDays]);
+
+  // Rekap Semester Data (Semester Ganjil & Genap)
+  const rekapSemesterData = useMemo(() => {
+    if (!activeStudent) {
+      return {
+        months: [],
+        totalHadir: 0,
+        totalTerlambat: 0,
+        totalIzin: 0,
+        totalSakit: 0,
+        totalAlfa: 0,
+        totalEffectiveDays: 0,
+        rate: 100,
+        semesterLabel: 'Semester Ganjil',
+      };
+    }
+
+    const baseYear = selectedYear;
+    const targetMonthIndices = rekapSemester === 'ganjil'
+      ? [6, 7, 8, 9, 10, 11] // Jul - Des
+      : [0, 1, 2, 3, 4, 5];  // Jan - Jun
+
+    const monthsData = targetMonthIndices.map((mIdx) => {
+      const mName = monthNames[mIdx];
+      const mPrefix = `${baseYear}-${String(mIdx + 1).padStart(2, '0')}`;
+      const daysInMonth = new Date(baseYear, mIdx + 1, 0).getDate();
+
+      let mHadir = 0;
+      let mTerlambat = 0;
+      let mIzin = 0;
+      let mSakit = 0;
+      let mAlfa = 0;
+      let mEffective = 0;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dStr = `${mPrefix}-${String(day).padStart(2, '0')}`;
+        const isFuture = dStr > runningDate;
+        const stat = getDateStatus(dStr);
+        if (stat.isEffective && !isFuture) {
+          mEffective++;
+        }
+        const rec = attendanceRecords.find(
+          (r) => isRecordForStudent(r) && r.date === dStr && (!r.type || r.type === 'DAILY')
+        );
+        if (rec) {
+          if (rec.status === 'Hadir') mHadir++;
+          else if (rec.status === 'Terlambat') { mHadir++; mTerlambat++; }
+          else if (rec.status === 'Izin') mIzin++;
+          else if (rec.status === 'Sakit') mSakit++;
+          else if (rec.status === 'Alfa') mAlfa++;
+        }
+      }
+
+      const mRate = mEffective > 0 ? Math.min(100, Math.round((mHadir / mEffective) * 100)) : (mHadir > 0 ? 100 : 0);
+
+      return {
+        monthIndex: mIdx,
+        monthName: mName,
+        hadir: mHadir,
+        terlambat: mTerlambat,
+        izin: mIzin,
+        sakit: mSakit,
+        alfa: mAlfa,
+        effectiveDays: mEffective,
+        rate: mRate,
+      };
+    });
+
+    const totalHadir = monthsData.reduce((acc, m) => acc + m.hadir, 0);
+    const totalTerlambat = monthsData.reduce((acc, m) => acc + m.terlambat, 0);
+    const totalIzin = monthsData.reduce((acc, m) => acc + m.izin, 0);
+    const totalSakit = monthsData.reduce((acc, m) => acc + m.sakit, 0);
+    const totalAlfa = monthsData.reduce((acc, m) => acc + m.alfa, 0);
+    const totalEffectiveDays = monthsData.reduce((acc, m) => acc + m.effectiveDays, 0);
+    const overallRate = totalEffectiveDays > 0 ? Math.min(100, Math.round((totalHadir / totalEffectiveDays) * 100)) : 100;
+
+    return {
+      months: monthsData,
+      totalHadir,
+      totalTerlambat,
+      totalIzin,
+      totalSakit,
+      totalAlfa,
+      totalEffectiveDays,
+      rate: overallRate,
+      semesterLabel: rekapSemester === 'ganjil' ? 'Semester Ganjil (Gasal)' : 'Semester Genap',
+    };
+  }, [activeStudent, selectedYear, rekapSemester, runningDate, attendanceRecords, isRecordForStudent, getDateStatus, monthNames]);
+
   // Navigate to screen
   const navigateTo = (screen: MobileScreen) => {
     setPreviousScreen(currentScreen);
     setCurrentScreen(screen);
-    if (screen === 'scanner' || screen === 'absensi-menu' || screen === 'beranda') {
+    if (screen === 'scanner' || screen === 'absensi-menu' || screen === 'beranda' || screen === 'rekap') {
       refreshRunningDayAttendance();
     }
   };
@@ -1167,7 +1383,7 @@ export const PortalSiswaView: React.FC = () => {
                       </div>
                       <div>
                         <h3 className="text-sm sm:text-base font-black tracking-tight leading-tight">
-                          Absensi Hari Ini
+                          Presensi Hari Ini
                         </h3>
                         <span className="text-[11px] font-bold text-blue-100 block">
                           {formatIndonesianDate(runningDate)}
@@ -1267,19 +1483,31 @@ export const PortalSiswaView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Ringkasan Absensi Section */}
+              {/* Ringkasan Presensi Section */}
               <div className="space-y-3 pt-1">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-black text-slate-900 tracking-tight">
-                    Ringkasan Absensi
+                    Ringkasan Presensi
                   </h3>
-                  <button
-                    onClick={() => setShowMonthPickerModal(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer"
-                  >
-                    <Calendar size={13} className="text-blue-600" />
-                    <span>{currentMonthDisplay}</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        setCurrentScreen('rekap');
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-black transition-all cursor-pointer border border-blue-200"
+                    >
+                      <BarChart3 size={12} />
+                      <span>Rekap</span>
+                    </button>
+                    <button
+                      onClick={() => setShowMonthPickerModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer"
+                    >
+                      <Calendar size={13} className="text-blue-600" />
+                      <span>{currentMonthDisplay}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* 4 Stat Cards in 2x2 Grid */}
@@ -1904,12 +2132,12 @@ export const PortalSiswaView: React.FC = () => {
               {/* Header: Title + History Icon */}
               <div className="flex items-center justify-between pt-1">
                 <h2 className="text-base font-black text-slate-900 tracking-tight">
-                  Absensi
+                  Presensi
                 </h2>
                 <button
                   onClick={() => navigateTo('riwayat')}
                   className="w-9 h-9 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-700 transition-all active:scale-95 cursor-pointer"
-                  title="Lihat Riwayat Absensi"
+                  title="Lihat Riwayat Presensi"
                 >
                   <RotateCcw size={17} />
                 </button>
@@ -2053,6 +2281,835 @@ export const PortalSiswaView: React.FC = () => {
                   </svg>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* SCREEN: REKAPITULASI PRESENSI (HARIAN, MINGGUAN, BULANAN, SEMESTER) */}
+          {/* ========================================================================= */}
+          {currentScreen === 'rekap' && (
+            <div className="p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
+              {/* Header */}
+              <div className="flex items-center justify-between pt-1">
+                <div>
+                  <h2 className="text-base font-black text-slate-900 tracking-tight">
+                    Rekapitulasi Presensi
+                  </h2>
+                  <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                    {activeStudent?.nama || 'Siswa'} • Kelas {studentDisplayClassName}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
+                    NISN: {activeStudent?.nisn || '-'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Sub-Tab Selector: Harian | Mingguan | Bulanan | Semester */}
+              <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('tap');
+                    setRekapTab('harian');
+                  }}
+                  className={`py-2 px-1 rounded-xl transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1 text-center ${
+                    rekapTab === 'harian'
+                      ? 'bg-blue-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 hover:text-slate-900 font-bold'
+                  }`}
+                >
+                  <CalendarDays size={13} />
+                  <span>Harian</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('tap');
+                    setRekapTab('mingguan');
+                  }}
+                  className={`py-2 px-1 rounded-xl transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1 text-center ${
+                    rekapTab === 'mingguan'
+                      ? 'bg-blue-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 hover:text-slate-900 font-bold'
+                  }`}
+                >
+                  <Calendar size={13} />
+                  <span>Mingguan</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('tap');
+                    setRekapTab('bulanan');
+                  }}
+                  className={`py-2 px-1 rounded-xl transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1 text-center ${
+                    rekapTab === 'bulanan'
+                      ? 'bg-blue-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 hover:text-slate-900 font-bold'
+                  }`}
+                >
+                  <BarChart3 size={13} />
+                  <span>Bulanan</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('tap');
+                    setRekapTab('semester');
+                  }}
+                  className={`py-2 px-1 rounded-xl transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1 text-center ${
+                    rekapTab === 'semester'
+                      ? 'bg-blue-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 hover:text-slate-900 font-bold'
+                  }`}
+                >
+                  <Award size={13} />
+                  <span>Semester</span>
+                </button>
+              </div>
+
+              {/* ----------------------------------------------------------------- */}
+              {/* TAB 1: REKAPITULASI HARIAN */}
+              {/* ----------------------------------------------------------------- */}
+              {rekapTab === 'harian' && (
+                <div className="space-y-3.5 animate-in fade-in duration-150">
+                  {/* Date Navigator Bar */}
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 flex items-center justify-between shadow-2xs">
+                    <button
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        setRekapDate(adjustDateByDays(rekapDate, -1));
+                      }}
+                      className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-700 border border-slate-200 cursor-pointer active:scale-95"
+                      title="Hari Sebelumnya"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+
+                    <div className="flex flex-col items-center text-center">
+                      <span className="text-xs font-black text-slate-900">
+                        {formatIndonesianDate(rekapDate)}
+                      </span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {rekapDate === runningDate ? (
+                          <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.2 rounded-full border border-blue-200">
+                            Hari Ini
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              triggerHaptic('tap');
+                              setRekapDate(runningDate);
+                            }}
+                            className="text-[10px] font-bold text-slate-500 hover:text-blue-600 underline cursor-pointer"
+                          >
+                            Kembali ke Hari Ini
+                          </button>
+                        )}
+                        <label className="text-[10px] text-slate-400 hover:text-blue-600 cursor-pointer flex items-center gap-0.5">
+                          <span>• Ubah</span>
+                          <input
+                            type="date"
+                            value={rekapDate}
+                            onChange={(e) => {
+                              if (e.target.value) setRekapDate(e.target.value);
+                            }}
+                            className="sr-only"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        setRekapDate(adjustDateByDays(rekapDate, 1));
+                      }}
+                      className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-700 border border-slate-200 cursor-pointer active:scale-95"
+                      title="Hari Berikutnya"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+
+                  {/* Hero Status Card */}
+                  {(() => {
+                    const rec = rekapDayRecord;
+                    const isFuture = rekapDate > runningDate;
+                    const isHoliday = !rekapDayStatus.isEffective;
+                    const statusText = rec?.status || (isHoliday ? 'Libur' : isFuture ? 'Mendatang' : 'Belum Ada Data');
+
+                    let bgGradient = 'bg-slate-50 border-slate-200 text-slate-800';
+                    let badgeColor = 'bg-slate-200 text-slate-800';
+                    let iconNode = <Clock size={28} className="text-slate-500" />;
+
+                    if (rec?.status === 'Hadir') {
+                      bgGradient = 'bg-gradient-to-br from-emerald-50 via-teal-50 to-white border-emerald-200 text-emerald-950';
+                      badgeColor = 'bg-emerald-600 text-white';
+                      iconNode = <CheckCircle2 size={30} className="text-emerald-600" />;
+                    } else if (rec?.status === 'Terlambat') {
+                      bgGradient = 'bg-gradient-to-br from-amber-50 via-yellow-50 to-white border-amber-200 text-amber-950';
+                      badgeColor = 'bg-amber-600 text-white';
+                      iconNode = <AlertTriangle size={30} className="text-amber-600" />;
+                    } else if (rec?.status === 'Izin') {
+                      bgGradient = 'bg-gradient-to-br from-blue-50 via-sky-50 to-white border-blue-200 text-blue-950';
+                      badgeColor = 'bg-blue-600 text-white';
+                      iconNode = <FileText size={30} className="text-blue-600" />;
+                    } else if (rec?.status === 'Sakit') {
+                      bgGradient = 'bg-gradient-to-br from-rose-50 via-amber-50 to-white border-rose-200 text-rose-950';
+                      badgeColor = 'bg-rose-600 text-white';
+                      iconNode = <HeartPulse size={30} className="text-rose-600" />;
+                    } else if (rec?.status === 'Alfa') {
+                      bgGradient = 'bg-gradient-to-br from-rose-50 to-red-50 border-rose-300 text-rose-950';
+                      badgeColor = 'bg-rose-600 text-white';
+                      iconNode = <XCircle size={30} className="text-rose-600" />;
+                    } else if (isHoliday) {
+                      bgGradient = 'bg-slate-50 border-slate-200 text-slate-700';
+                      badgeColor = 'bg-slate-500 text-white';
+                      iconNode = <Calendar size={30} className="text-slate-500" />;
+                    }
+
+                    return (
+                      <div className={`border rounded-3xl p-4.5 space-y-3.5 shadow-xs ${bgGradient}`}>
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                              Status Presensi Harian
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-wide shadow-2xs ${badgeColor}`}>
+                                {statusText}
+                              </span>
+                              {rec?.status === 'Hadir' && (
+                                <span className="text-[11px] font-bold text-emerald-700">
+                                  Tepat Waktu
+                                </span>
+                              )}
+                              {rec?.status === 'Terlambat' && (
+                                <span className="text-[11px] font-bold text-amber-700">
+                                  Terlambat Hadir
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="p-2 rounded-2xl bg-white/80 shadow-2xs">
+                            {iconNode}
+                          </div>
+                        </div>
+
+                        {/* Waktu Masuk & Pulang */}
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                          <div className="bg-white/90 p-3 rounded-2xl border border-slate-100 space-y-1">
+                            <span className="text-[10px] font-bold text-slate-500 block">
+                              Presensi Masuk
+                            </span>
+                            <div className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                              <Clock size={14} className="text-emerald-600 shrink-0" />
+                              <span>{rec?.checkInTime && rec.checkInTime !== '-' ? `${rec.checkInTime} WIB` : '-'}</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-white/90 p-3 rounded-2xl border border-slate-100 space-y-1">
+                            <span className="text-[10px] font-bold text-slate-500 block">
+                              Presensi Pulang
+                            </span>
+                            <div className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                              <Clock size={14} className="text-blue-600 shrink-0" />
+                              <span>{rec?.checkOutTime && rec.checkOutTime !== '-' ? `${rec.checkOutTime} WIB` : '-'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Info Catatan & Metode */}
+                        <div className="text-[11px] font-medium text-slate-600 bg-white/80 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between">
+                          <span>Metode: <strong className="text-slate-800">{rec ? 'Tervalidasi Digital' : isHoliday ? 'Hari Libur Kalender' : 'Belum Dicatat'}</strong></span>
+                          <span>Kelas: <strong className="text-slate-800">{studentDisplayClassName}</strong></span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Detail Pengajuan Izin Jika Ada */}
+                  {rekapDayLeave && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-3xl p-3.5 space-y-2">
+                      <div className="flex items-center gap-2 text-amber-900 font-black text-xs">
+                        <FileText size={16} className="text-amber-600" />
+                        <span>Permohonan {rekapDayLeave.type === 'sakit' ? 'Sakit' : 'Izin'} Mandiri</span>
+                        <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          rekapDayLeave.status === 'approved'
+                            ? 'bg-emerald-600 text-white'
+                            : rekapDayLeave.status === 'rejected'
+                            ? 'bg-rose-600 text-white'
+                            : 'bg-amber-500 text-white'
+                        }`}>
+                          {rekapDayLeave.status === 'approved' ? 'Disetujui' : rekapDayLeave.status === 'rejected' ? 'Ditolak' : 'Menunggu'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                        &ldquo;{rekapDayLeave.reason}&rdquo;
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Presensi Mata Pelajaran Hari Ini */}
+                  <div className="bg-white border border-slate-200/90 rounded-3xl p-4 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                        <GraduationCap size={15} className="text-blue-600" />
+                        <span>Presensi Mata Pelajaran</span>
+                      </h4>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {rekapSubjectRecords.length} Mapel
+                      </span>
+                    </div>
+
+                    {rekapSubjectRecords.length > 0 ? (
+                      <div className="space-y-2">
+                        {rekapSubjectRecords.map((mRec, idx) => (
+                          <div
+                            key={mRec.id || idx}
+                            className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs"
+                          >
+                            <div>
+                              <span className="font-bold text-slate-800 block">
+                                {mRec.subjectName || 'Mata Pelajaran'}
+                              </span>
+                              <span className="text-[10px] text-slate-500">
+                                {mRec.teacherName || 'Guru Pengampu'}
+                              </span>
+                            </div>
+                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                              mRec.status === 'Hadir'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : mRec.status === 'Izin'
+                                ? 'bg-blue-100 text-blue-800'
+                                : mRec.status === 'Sakit'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}>
+                              {mRec.status || 'Hadir'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-4 text-center text-xs text-slate-500 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+                        Presensi Terpadu Sekolah terintegrasi penuh untuk seluruh jam pelajaran hari ini.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ----------------------------------------------------------------- */}
+              {/* TAB 2: REKAPITULASI MINGGUAN */}
+              {/* ----------------------------------------------------------------- */}
+              {rekapTab === 'mingguan' && (
+                <div className="space-y-3.5 animate-in fade-in duration-150">
+                  {/* Week Navigator */}
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 flex items-center justify-between shadow-2xs">
+                    <button
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        setRekapWeekOffset((o) => o - 1);
+                      }}
+                      className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-700 border border-slate-200 cursor-pointer active:scale-95"
+                      title="Pekan Sebelumnya"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+
+                    <div className="flex flex-col items-center text-center">
+                      <span className="text-xs font-black text-slate-900">
+                        {rekapWeeklyData.rangeLabel}
+                      </span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {rekapWeekOffset === 0 ? (
+                          <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.2 rounded-full border border-blue-200">
+                            Pekan Berjalan Ini
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              triggerHaptic('tap');
+                              setRekapWeekOffset(0);
+                            }}
+                            className="text-[10px] font-bold text-slate-500 hover:text-blue-600 underline cursor-pointer"
+                          >
+                            Kembali ke Pekan Ini
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        setRekapWeekOffset((o) => o + 1);
+                      }}
+                      className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-700 border border-slate-200 cursor-pointer active:scale-95"
+                      title="Pekan Berikutnya"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+
+                  {/* Weekly Performance Hero */}
+                  <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 text-white rounded-3xl p-4.5 space-y-3 shadow-lg shadow-blue-500/20">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-200 block">
+                          Tingkat Kehadiran Pekanan
+                        </span>
+                        <div className="text-2xl font-black mt-0.5 flex items-baseline gap-1.5">
+                          <span>{rekapWeeklyData.rate}%</span>
+                          <span className="text-xs font-semibold text-blue-200">
+                            ({rekapWeeklyData.hadir} / {rekapWeeklyData.effectiveDays} Hari Efektif)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0">
+                        <TrendingUp size={22} />
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-blue-950/40 h-2.5 rounded-full overflow-hidden p-0.5 border border-white/20">
+                      <div
+                        className="bg-emerald-400 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${rekapWeeklyData.rate}%` }}
+                      />
+                    </div>
+
+                    {/* 4 Quick Stat Pills */}
+                    <div className="grid grid-cols-4 gap-1.5 pt-1 text-center text-xs">
+                      <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
+                        <span className="text-[10px] text-blue-100 font-bold block">Hadir</span>
+                        <span className="font-black text-sm">{rekapWeeklyData.hadir}</span>
+                      </div>
+                      <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
+                        <span className="text-[10px] text-blue-100 font-bold block">Terlambat</span>
+                        <span className="font-black text-sm">{rekapWeeklyData.terlambat}</span>
+                      </div>
+                      <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
+                        <span className="text-[10px] text-blue-100 font-bold block">Izin</span>
+                        <span className="font-black text-sm">{rekapWeeklyData.izin}</span>
+                      </div>
+                      <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
+                        <span className="text-[10px] text-blue-100 font-bold block">Sakit/Alfa</span>
+                        <span className="font-black text-sm">{rekapWeeklyData.sakit + rekapWeeklyData.alfa}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Day by Day Breakdown (Senin - Sabtu) */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-black text-slate-800 tracking-tight px-1 flex items-center justify-between">
+                      <span>Rincian Hari (Senin - Sabtu)</span>
+                      <span className="text-[10px] text-slate-400 font-semibold">Ketuk untuk lihat harian</span>
+                    </h4>
+
+                    {rekapWeeklyData.days.map((item) => {
+                      const rec = item.record;
+                      const isHoliday = !item.isEffective;
+                      const status = rec?.status || (isHoliday ? 'Libur' : item.isFuture ? 'Mendatang' : 'Belum Ada Data');
+
+                      return (
+                        <div
+                          key={item.date}
+                          onClick={() => {
+                            triggerHaptic('tap');
+                            setRekapDate(item.date);
+                            setRekapTab('harian');
+                          }}
+                          className="bg-white hover:bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between shadow-2xs transition-all cursor-pointer active:scale-98"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-slate-100 flex flex-col items-center justify-center text-slate-700 font-black text-xs shrink-0">
+                              <span className="text-[10px] text-slate-500 font-bold">{item.dayName.slice(0, 3)}</span>
+                              <span className="leading-none text-slate-900">{item.dateObj.getDate()}</span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-slate-900">
+                                  {item.dayName}, {item.formattedShort}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-slate-500 font-medium block">
+                                {rec?.checkInTime && rec.checkInTime !== '-' ? `Masuk: ${rec.checkInTime} WIB` : isHoliday ? 'Libur Kalender' : item.isFuture ? 'Jadwal Mendatang' : 'Belum Ada Jam Masuk'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                              status === 'Hadir'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : status === 'Terlambat'
+                                ? 'bg-amber-100 text-amber-800'
+                                : status === 'Izin'
+                                ? 'bg-blue-100 text-blue-800'
+                                : status === 'Sakit'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : status === 'Alfa'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {status}
+                            </span>
+                            <ChevronRight size={14} className="text-slate-400" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ----------------------------------------------------------------- */}
+              {/* TAB 3: REKAPITULASI BULANAN */}
+              {/* ----------------------------------------------------------------- */}
+              {rekapTab === 'bulanan' && (
+                <div className="space-y-3.5 animate-in fade-in duration-150">
+                  {/* Month & Year Bar */}
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 flex items-center justify-between shadow-2xs">
+                    <button
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        if (selectedMonth === 0) {
+                          setSelectedMonth(11);
+                          setSelectedYear((y) => y - 1);
+                        } else {
+                          setSelectedMonth((m) => m - 1);
+                        }
+                      }}
+                      className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-700 border border-slate-200 cursor-pointer active:scale-95"
+                      title="Bulan Lalu"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        setShowMonthPickerModal(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-black text-slate-900 cursor-pointer"
+                    >
+                      <Calendar size={13} className="text-blue-600" />
+                      <span>{currentMonthDisplay}</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        if (selectedMonth === 11) {
+                          setSelectedMonth(0);
+                          setSelectedYear((y) => y + 1);
+                        } else {
+                          setSelectedMonth((m) => m + 1);
+                        }
+                      }}
+                      className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-700 border border-slate-200 cursor-pointer active:scale-95"
+                      title="Bulan Depan"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+
+                  {/* Monthly Performance Card */}
+                  <div className="bg-gradient-to-br from-indigo-600 via-blue-600 to-sky-600 text-white rounded-3xl p-4.5 space-y-3 shadow-lg shadow-indigo-500/20">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-200 block">
+                          Tingkat Kehadiran Bulanan
+                        </span>
+                        <div className="text-2xl font-black mt-0.5 flex items-baseline gap-1.5">
+                          <span>{monthlyRate}%</span>
+                          <span className="text-xs font-semibold text-indigo-200">
+                            ({monthlyStats.hadir} / {monthlyEffectiveDays} Hari)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0">
+                        <PieChart size={22} />
+                      </div>
+                    </div>
+
+                    {/* Progress Bar with 85% Target Line */}
+                    <div className="space-y-1">
+                      <div className="w-full bg-indigo-950/40 h-2.5 rounded-full overflow-hidden p-0.5 border border-white/20 relative">
+                        <div
+                          className="bg-emerald-400 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${monthlyRate}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-indigo-100 font-bold px-0.5">
+                        <span>Min. Standar Sekolah 85%</span>
+                        <span>{monthlyRate >= 85 ? '✓ Memenuhi Standar' : 'Perlu Ditingkatkan'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4 Stat Cards in 2x2 Grid */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="bg-white border border-slate-100 rounded-3xl p-3.5 shadow-xs space-y-1">
+                      <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black">
+                        <Check size={16} strokeWidth={3} />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 block">Total Hadir</span>
+                        <span className="text-2xl font-black text-slate-900 leading-none">
+                          {monthlyStats.hadir}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-semibold ml-1">Hari</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-100 rounded-3xl p-3.5 shadow-xs space-y-1">
+                      <div className="w-7 h-7 rounded-full bg-amber-400 text-white flex items-center justify-center font-black">
+                        <Clock size={16} strokeWidth={2.5} />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 block">Izin</span>
+                        <span className="text-2xl font-black text-slate-900 leading-none">
+                          {monthlyStats.izin}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-semibold ml-1">Hari</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-100 rounded-3xl p-3.5 shadow-xs space-y-1">
+                      <div className="w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center font-black">
+                        <HeartPulse size={16} />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 block">Sakit</span>
+                        <span className="text-2xl font-black text-slate-900 leading-none">
+                          {monthlyStats.sakit}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-semibold ml-1">Hari</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-100 rounded-3xl p-3.5 shadow-xs space-y-1">
+                      <div className="w-7 h-7 rounded-full bg-slate-400 text-white flex items-center justify-center font-black">
+                        <X size={16} strokeWidth={3} />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 block">Tanpa Keterangan</span>
+                        <span className="text-2xl font-black text-slate-900 leading-none">
+                          {monthlyStats.alfa}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-semibold ml-1">Hari</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Riwayat Kalender Bulan Ini (Tampil ringkas) */}
+                  <div className="bg-white border border-slate-200/90 rounded-3xl p-4 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black text-slate-900">
+                        Daftar Presensi {monthNames[selectedMonth]} {selectedYear}
+                      </h4>
+                      <button
+                        onClick={() => navigateTo('riwayat')}
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                      >
+                        Buka Riwayat Penuh
+                      </button>
+                    </div>
+
+                    <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                      {historyList.filter((d) => d.isEffective && !d.isFuture).slice(0, 10).map((item) => (
+                        <div
+                          key={item.date}
+                          onClick={() => handleOpenDetail(item.date)}
+                          className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span className="font-semibold text-slate-700">
+                            {item.dayName}, {item.date.split('-')[2]} {monthNames[selectedMonth].slice(0, 3)}
+                          </span>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            item.record?.status === 'Hadir'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : item.record?.status === 'Izin'
+                              ? 'bg-blue-100 text-blue-800'
+                              : item.record?.status === 'Sakit'
+                              ? 'bg-amber-100 text-amber-800'
+                              : item.record?.status === 'Alfa'
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-slate-200 text-slate-700'
+                          }`}>
+                            {item.record?.status || 'Belum Ada'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ----------------------------------------------------------------- */}
+              {/* TAB 4: REKAPITULASI SEMESTER */}
+              {/* ----------------------------------------------------------------- */}
+              {rekapTab === 'semester' && (
+                <div className="space-y-3.5 animate-in fade-in duration-150">
+                  {/* Semester Segmented Switcher */}
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-white border border-slate-200/90 rounded-2xl shadow-2xs text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        setRekapSemester('ganjil');
+                      }}
+                      className={`py-2 px-3 rounded-xl transition-all cursor-pointer text-center ${
+                        rekapSemester === 'ganjil'
+                          ? 'bg-blue-600 text-white font-black shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 bg-slate-50'
+                      }`}
+                    >
+                      Semester Ganjil (Jul - Des)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        setRekapSemester('genap');
+                      }}
+                      className={`py-2 px-3 rounded-xl transition-all cursor-pointer text-center ${
+                        rekapSemester === 'genap'
+                          ? 'bg-blue-600 text-white font-black shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 bg-slate-50'
+                      }`}
+                    >
+                      Semester Genap (Jan - Jun)
+                    </button>
+                  </div>
+
+                  {/* Semester Hero Scorecard */}
+                  <div className="bg-gradient-to-br from-blue-700 via-indigo-700 to-purple-800 text-white rounded-3xl p-4.5 space-y-3.5 shadow-lg shadow-indigo-600/20">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-200 block">
+                          {rekapSemesterData.semesterLabel} • TA {schoolProfile.tahunAjaran || `${selectedYear}/${selectedYear + 1}`}
+                        </span>
+                        <div className="text-3xl font-black mt-1 leading-none">
+                          {rekapSemesterData.rate}%
+                        </div>
+                        <span className="text-xs font-medium text-blue-100 block mt-1">
+                          Total {rekapSemesterData.totalHadir} Hari Hadir dari {rekapSemesterData.totalEffectiveDays} Hari Efektif
+                        </span>
+                      </div>
+
+                      <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0 shadow-xs">
+                        <Award size={26} />
+                      </div>
+                    </div>
+
+                    {/* Progress Bar & Syarat Kenaikan Kelas */}
+                    <div className="space-y-1.5 pt-1 border-t border-white/20">
+                      <div className="w-full bg-blue-950/40 h-2.5 rounded-full overflow-hidden p-0.5 border border-white/20">
+                        <div
+                          className="bg-emerald-400 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${rekapSemesterData.rate}%` }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-bold text-white/90">
+                        <span className="inline-flex items-center gap-1">
+                          <ShieldCheck size={14} className="text-emerald-300" />
+                          <span>Standar Minimal Kenaikan Kelas: 85%</span>
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                          rekapSemesterData.rate >= 85
+                            ? 'bg-emerald-500/80 text-white'
+                            : 'bg-rose-500/80 text-white'
+                        }`}>
+                          {rekapSemesterData.rate >= 85 ? 'Layak Naik Kelas' : 'Kurang'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Akumulatif Grid 4 Pill */}
+                    <div className="grid grid-cols-4 gap-1.5 text-center text-xs pt-1">
+                      <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
+                        <span className="text-[10px] text-blue-200 font-bold block">Hadir</span>
+                        <span className="font-black text-sm">{rekapSemesterData.totalHadir}</span>
+                      </div>
+                      <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
+                        <span className="text-[10px] text-blue-200 font-bold block">Izin</span>
+                        <span className="font-black text-sm">{rekapSemesterData.totalIzin}</span>
+                      </div>
+                      <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
+                        <span className="text-[10px] text-blue-200 font-bold block">Sakit</span>
+                        <span className="font-black text-sm">{rekapSemesterData.totalSakit}</span>
+                      </div>
+                      <div className="bg-white/10 rounded-xl p-2 backdrop-blur-xs">
+                        <span className="text-[10px] text-blue-200 font-bold block">Alfa</span>
+                        <span className="font-black text-sm">{rekapSemesterData.totalAlfa}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Monthly Breakdown in Semester */}
+                  <div className="bg-white border border-slate-200/90 rounded-3xl p-4 space-y-3 shadow-2xs">
+                    <h4 className="text-xs font-black text-slate-900 tracking-tight flex items-center justify-between">
+                      <span>Rincian Per Bulan dalam Semester</span>
+                      <span className="text-[10px] text-slate-400 font-semibold">6 Bulan Pembelajaran</span>
+                    </h4>
+
+                    <div className="space-y-2.5">
+                      {rekapSemesterData.months.map((m) => (
+                        <div
+                          key={m.monthIndex}
+                          className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5"
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-black text-slate-900">
+                              {m.monthName}
+                            </span>
+                            <span className="font-black text-blue-600">
+                              {m.rate}% ({m.hadir}/{m.effectiveDays} Hari)
+                            </span>
+                          </div>
+
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-blue-600 h-full rounded-full transition-all duration-300"
+                              style={{ width: `${m.rate}%` }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 pt-0.5">
+                            <span>Hadir: {m.hadir}</span>
+                            <span>Izin: {m.izin}</span>
+                            <span>Sakit: {m.sakit}</span>
+                            <span>Alfa: {m.alfa}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Info Akademik */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-3xl p-3.5 space-y-1.5 text-xs text-slate-600 leading-relaxed">
+                    <div className="flex items-center gap-1.5 text-blue-700 font-black text-xs">
+                      <Info size={15} />
+                      <span>Ketentuan Rapor & Kenaikan Kelas</span>
+                    </div>
+                    <p>
+                      Persentase presensi semester dihitung secara otomatis berdasarkan total hari efektif kalender akademik sekolah. Siswa dengan kehadiran di atas 85% dinyatakan memenuhi syarat kehadiran untuk laporan buku rapor.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2539,16 +3596,16 @@ export const PortalSiswaView: React.FC = () => {
 
         </div>
 
-        {/* 3. PERSISTENT FIXED BOTTOM NAVIGATION BAR (Beranda, Absensi, Profil) */}
-        <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-50 bg-white border-t border-slate-200/90 px-6 py-2 flex items-center justify-around shadow-[0_-4px_25px_rgba(0,0,0,0.08)] select-none pb-[max(0.625rem,env(safe-area-inset-bottom))]">
-          {/* Beranda */}
+        {/* 3. PERSISTENT FIXED BOTTOM NAVIGATION BAR (Beranda, Presensi, Rekap, Profil) */}
+        <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-50 bg-white border-t border-slate-200/90 px-3 sm:px-6 py-2 flex items-center justify-around shadow-[0_-4px_25px_rgba(0,0,0,0.08)] select-none pb-[max(0.625rem,env(safe-area-inset-bottom))]">
+          {/* 1. Beranda */}
           <button
             id="nav-btn-beranda"
             onClick={() => {
               triggerHaptic('tap');
               setCurrentScreen('beranda');
             }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-4 rounded-xl active:scale-95 ${
+            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-2.5 rounded-xl active:scale-95 ${
               currentScreen === 'beranda'
                 ? 'text-blue-600 font-black'
                 : 'text-slate-400 hover:text-slate-600 font-medium'
@@ -2558,31 +3615,48 @@ export const PortalSiswaView: React.FC = () => {
             <span className="text-[11px] tracking-tight font-bold">Beranda</span>
           </button>
 
-          {/* Absensi */}
+          {/* 2. Presensi (sebelumnya Absensi) */}
           <button
-            id="nav-btn-absensi"
+            id="nav-btn-presensi"
             onClick={() => {
               triggerHaptic('tap');
               setCurrentScreen('absensi-menu');
             }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-4 rounded-xl active:scale-95 ${
+            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-2.5 rounded-xl active:scale-95 ${
               ['absensi-menu', 'scanner', 'riwayat', 'detail', 'izin-sakit'].includes(currentScreen)
                 ? 'text-blue-600 font-black'
                 : 'text-slate-400 hover:text-slate-600 font-medium'
             }`}
           >
             <Calendar size={22} strokeWidth={['absensi-menu', 'scanner', 'riwayat', 'detail', 'izin-sakit'].includes(currentScreen) ? 2.5 : 2} />
-            <span className="text-[11px] tracking-tight font-bold">Absensi</span>
+            <span className="text-[11px] tracking-tight font-bold">Presensi</span>
           </button>
 
-          {/* Profil */}
+          {/* 3. Rekap (Tambahan Baru: Harian, Mingguan, Bulanan, Semester) */}
+          <button
+            id="nav-btn-rekap"
+            onClick={() => {
+              triggerHaptic('tap');
+              setCurrentScreen('rekap');
+            }}
+            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-2.5 rounded-xl active:scale-95 ${
+              currentScreen === 'rekap'
+                ? 'text-blue-600 font-black'
+                : 'text-slate-400 hover:text-slate-600 font-medium'
+            }`}
+          >
+            <BarChart3 size={22} strokeWidth={currentScreen === 'rekap' ? 2.5 : 2} />
+            <span className="text-[11px] tracking-tight font-bold">Rekap</span>
+          </button>
+
+          {/* 4. Profil */}
           <button
             id="nav-btn-profil"
             onClick={() => {
               triggerHaptic('tap');
               setCurrentScreen('profil');
             }}
-            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-4 rounded-xl active:scale-95 ${
+            className={`flex flex-col items-center gap-1 transition-all cursor-pointer py-1 px-2.5 rounded-xl active:scale-95 ${
               currentScreen === 'profil'
                 ? 'text-blue-600 font-black'
                 : 'text-slate-400 hover:text-slate-600 font-medium'
