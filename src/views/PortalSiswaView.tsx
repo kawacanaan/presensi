@@ -236,8 +236,8 @@ export const PortalSiswaView: React.FC = () => {
     } catch (_) {}
   };
 
-  // Tab Pengaturan Siswa: 'akun' | 'aplikasi' | 'bantuan'
-  const [pengaturanTab, setPengaturanTab] = useState<'akun' | 'aplikasi' | 'bantuan'>('akun');
+  // Tab Pengaturan Siswa: 'profil' | 'aplikasi' | 'bantuan'
+  const [pengaturanTab, setPengaturanTab] = useState<'profil' | 'aplikasi' | 'bantuan'>('profil');
   const [isSendingTestPush, setIsSendingTestPush] = useState<boolean>(false);
 
   // Form Ganti Sandi Siswa
@@ -1663,7 +1663,7 @@ export const PortalSiswaView: React.FC = () => {
                     <div 
                       onClick={() => {
                         triggerHaptic('tap');
-                        setPengaturanTab('akun');
+                        setPengaturanTab('profil');
                         navigateTo('pengaturan');
                       }}
                       className="relative w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-600 p-0.5 shadow-md shadow-blue-500/20 shrink-0 overflow-hidden border-2 border-white cursor-pointer active:scale-95 transition-transform"
@@ -1903,17 +1903,12 @@ export const PortalSiswaView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Ringkasan Presensi Section dengan Grafik Lingkaran Berbasis Hari Belajar Efektif */}
+                {/* Ringkasan Presensi Section */}
                 <div className="space-y-3 pt-1">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-black text-slate-900 tracking-tight leading-tight">
-                        Ringkasan Presensi
-                      </h3>
-                      <span className="text-[10px] font-bold text-slate-500 block">
-                        Basis {effectiveDaysInMonth} Hari Belajar Efektif (100%)
-                      </span>
-                    </div>
+                    <h3 className="text-sm font-black text-slate-900 tracking-tight leading-tight">
+                      Ringkasan Presensi
+                    </h3>
                     <button
                       onClick={() => setShowMonthPickerModal(true)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/90 text-xs font-bold text-slate-700 shadow-2xs hover:border-slate-300 transition-all cursor-pointer active:scale-95"
@@ -1923,7 +1918,7 @@ export const PortalSiswaView: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* 4 Stat Cards in 2x2 Grid dengan Grafik Lingkaran Berbasis Hari Belajar Efektif */}
+                  {/* 4 Stat Cards in 2x2 Grid */}
                   <div className="grid grid-cols-2 gap-3">
                     {/* Hadir */}
                     <div className="bg-white border border-slate-200/80 hover:border-emerald-300 rounded-3xl p-3.5 shadow-xs hover:shadow-md transition-all flex items-center justify-between gap-2">
@@ -1939,8 +1934,8 @@ export const PortalSiswaView: React.FC = () => {
                           <span className="text-[11px] text-slate-400 font-bold">Hari</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60 truncate" title={`${monthlyStats.hadir} dari ${effectiveDaysInMonth} Hari Efektif`}>
-                            {hadirPct}% / {effectiveDaysInMonth} H
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60 truncate">
+                            {hadirPct}% Kehadiran
                           </span>
                         </div>
                       </div>
@@ -1961,8 +1956,8 @@ export const PortalSiswaView: React.FC = () => {
                           <span className="text-[11px] text-slate-400 font-bold">Hari</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60 truncate" title={`${monthlyStats.izin} dari ${effectiveDaysInMonth} Hari Efektif`}>
-                            {izinPct}% / {effectiveDaysInMonth} H
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60 truncate">
+                            {izinPct}%
                           </span>
                         </div>
                       </div>
@@ -1983,8 +1978,8 @@ export const PortalSiswaView: React.FC = () => {
                           <span className="text-[11px] text-slate-400 font-bold">Hari</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200/60 truncate" title={`${monthlyStats.sakit} dari ${effectiveDaysInMonth} Hari Efektif`}>
-                            {sakitPct}% / {effectiveDaysInMonth} H
+                          <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200/60 truncate">
+                            {sakitPct}%
                           </span>
                         </div>
                       </div>
@@ -2005,8 +2000,8 @@ export const PortalSiswaView: React.FC = () => {
                           <span className="text-[11px] text-slate-400 font-bold">Hari</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 truncate" title={`${monthlyStats.alfa} dari ${effectiveDaysInMonth} Hari Efektif`}>
-                            {alfaPct}% / {effectiveDaysInMonth} H
+                          <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 truncate">
+                            {alfaPct}%
                           </span>
                         </div>
                       </div>
@@ -2879,54 +2874,6 @@ export const PortalSiswaView: React.FC = () => {
                       </p>
                     </div>
                   )}
-
-                  {/* Presensi Mata Pelajaran Hari Ini */}
-                  <div className="bg-white border border-slate-200/90 rounded-3xl p-4 space-y-3 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                        <GraduationCap size={15} className="text-blue-600" />
-                        <span>Presensi Mata Pelajaran</span>
-                      </h4>
-                      <span className="text-[10px] font-bold text-slate-400">
-                        {rekapSubjectRecords.length} Mapel
-                      </span>
-                    </div>
-
-                    {rekapSubjectRecords.length > 0 ? (
-                      <div className="space-y-2">
-                        {rekapSubjectRecords.map((mRec, idx) => (
-                          <div
-                            key={mRec.id || idx}
-                            className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs"
-                          >
-                            <div>
-                              <span className="font-bold text-slate-800 block">
-                                {mRec.subjectName || 'Mata Pelajaran'}
-                              </span>
-                              <span className="text-[10px] text-slate-500">
-                                {mRec.teacherName || 'Guru Pengampu'}
-                              </span>
-                            </div>
-                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                              mRec.status === 'Hadir'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : mRec.status === 'Izin'
-                                ? 'bg-blue-100 text-blue-800'
-                                : mRec.status === 'Sakit'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-rose-100 text-rose-800'
-                            }`}>
-                              {mRec.status || 'Hadir'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="py-4 text-center text-xs text-slate-500 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
-                        Presensi Terpadu Sekolah terintegrasi penuh untuk seluruh jam pelajaran hari ini.
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
 
@@ -3471,23 +3418,23 @@ export const PortalSiswaView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 3 TAB SEGMENTED CONTROL: Akun | Aplikasi | Bantuan */}
+                {/* 3 TAB SEGMENTED CONTROL: Profil | Aplikasi | Bantuan */}
                 <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100/90 rounded-2xl text-xs font-bold border border-slate-200/80 shadow-2xs">
-                  {/* Tab 1: Akun */}
+                  {/* Tab 1: Profil */}
                   <button
                     type="button"
                     onClick={() => {
                       triggerHaptic('tap');
-                      setPengaturanTab('akun');
+                      setPengaturanTab('profil');
                     }}
                     className={`py-2 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      pengaturanTab === 'akun'
+                      pengaturanTab === 'profil'
                         ? 'bg-white text-blue-700 font-black shadow-xs border border-slate-200/50'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 font-bold'
                     }`}
                   >
                     <User size={15} />
-                    <span>Akun</span>
+                    <span>Profil</span>
                   </button>
 
                   {/* Tab 2: Aplikasi */}
@@ -3527,86 +3474,35 @@ export const PortalSiswaView: React.FC = () => {
               </div>
 
               {/* ----------------------------------------------------------------- */}
-              {/* TAB 1: AKUN SISWA */}
+              {/* TAB 1: PROFIL SISWA */}
               {/* ----------------------------------------------------------------- */}
-              {pengaturanTab === 'akun' && (
+              {pengaturanTab === 'profil' && (
                 <div className="space-y-4 animate-in fade-in duration-150">
-                  {/* Large Avatar & Name with Image Upload */}
-                  <div className="flex flex-col items-center justify-center text-center space-y-2 pt-1 bg-white border border-slate-100 rounded-3xl p-4 shadow-2xs">
-                    {/* Hidden File Input for Device Photo / Album Upload */}
-                    <input
-                      ref={photoInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                    />
-
-                    <div className="relative group">
-                      <div
-                        onClick={() => photoInputRef.current?.click()}
-                        className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 p-1 shadow-lg shrink-0 overflow-hidden border-2 border-white cursor-pointer relative active:scale-95 transition-transform"
-                        title="Klik untuk memilih foto dari album/perangkat"
-                      >
-                        {customStudentAvatar ? (
-                          <img
-                            src={customStudentAvatar}
-                            alt={activeStudent.nama}
-                            className="w-full h-full rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
-                            <svg viewBox="0 0 100 100" className="w-full h-full">
-                              <circle cx="50" cy="50" r="48" fill="#93C5FD" />
-                              <path d="M22 92 C22 72 35 68 50 68 C65 68 78 72 78 92 Z" fill="#1E3A8A" />
-                              <polygon points="50,68 44,82 56,82" fill="#FFFFFF" />
-                              <polygon points="50,74 47,88 53,88" fill="#EF4444" />
-                              <circle cx="50" cy="45" r="22" fill="#FDE047" />
-                              <path d="M28 42 C28 26 40 20 50 20 C60 20 72 26 72 42 C72 48 70 52 70 52 C70 52 64 36 50 36 C36 36 30 52 30 52 Z" fill="#451A03" />
-                              <circle cx="43" cy="44" r="3" fill="#1E293B" />
-                              <circle cx="57" cy="44" r="3" fill="#1E293B" />
-                              <path d="M46 51 Q50 55 54 51" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" fill="none" />
-                              <circle cx="39" cy="48" r="2.5" fill="#FCA5A5" />
-                              <circle cx="61" cy="48" r="2.5" fill="#FCA5A5" />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Camera Badge Button on Avatar */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          photoInputRef.current?.click();
-                        }}
-                        className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-md border-2 border-white transition-all active:scale-90 cursor-pointer"
-                        title="Unggah / Ganti Foto Profil"
-                      >
-                        <Camera size={14} />
-                      </button>
-                    </div>
-
-                    {/* Photo Action Buttons */}
-                    <div className="flex items-center gap-2 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => photoInputRef.current?.click()}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
-                      >
-                        <Camera size={13} />
-                        <span>{customStudentAvatar ? 'Ganti Foto' : 'Pilih Foto Profil'}</span>
-                      </button>
-                      {customStudentAvatar && (
-                        <button
-                          type="button"
-                          onClick={handleRemoveAvatar}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all active:scale-95 cursor-pointer"
-                          title="Kembalikan ke avatar awal"
-                        >
-                          <RotateCcw size={12} />
-                          <span>Reset</span>
-                        </button>
+                  {/* Clean Avatar & Student Information */}
+                  <div className="flex flex-col items-center justify-center text-center space-y-2.5 pt-1 bg-white border border-slate-100 rounded-3xl p-4 shadow-2xs">
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 p-1 shadow-lg shrink-0 overflow-hidden border-2 border-white relative">
+                      {customStudentAvatar ? (
+                        <img
+                          src={customStudentAvatar}
+                          alt={activeStudent.nama}
+                          className="w-full h-full rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
+                          <svg viewBox="0 0 100 100" className="w-full h-full">
+                            <circle cx="50" cy="50" r="48" fill="#93C5FD" />
+                            <path d="M22 92 C22 72 35 68 50 68 C65 68 78 72 78 92 Z" fill="#1E3A8A" />
+                            <polygon points="50,68 44,82 56,82" fill="#FFFFFF" />
+                            <polygon points="50,74 47,88 53,88" fill="#EF4444" />
+                            <circle cx="50" cy="45" r="22" fill="#FDE047" />
+                            <path d="M28 42 C28 26 40 20 50 20 C60 20 72 26 72 42 C72 48 70 52 70 52 C70 52 64 36 50 36 C36 36 30 52 30 52 Z" fill="#451A03" />
+                            <circle cx="43" cy="44" r="3" fill="#1E293B" />
+                            <circle cx="57" cy="44" r="3" fill="#1E293B" />
+                            <path d="M46 51 Q50 55 54 51" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" fill="none" />
+                            <circle cx="39" cy="48" r="2.5" fill="#FCA5A5" />
+                            <circle cx="61" cy="48" r="2.5" fill="#FCA5A5" />
+                          </svg>
+                        </div>
                       )}
                     </div>
 
@@ -3710,102 +3606,6 @@ export const PortalSiswaView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Keamanan & Ubah Password Akun Siswa */}
-                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic('tap');
-                        setShowPasswordSection((prev) => !prev);
-                        setPasswordFeedback(null);
-                      }}
-                      className="w-full flex items-center justify-between text-left cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                          <KeyRound size={16} />
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-black text-slate-900 leading-tight">
-                            Keamanan & Kata Sandi
-                          </h4>
-                          <span className="text-[11px] text-slate-500 font-medium">
-                            {showPasswordSection ? 'Tutup formulir ganti sandi' : 'Ubah kata sandi akun siswa'}
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronRight
-                        size={16}
-                        className={`text-slate-400 transition-transform ${showPasswordSection ? 'rotate-90' : ''}`}
-                      />
-                    </button>
-
-                    {showPasswordSection && (
-                      <form onSubmit={handleChangeStudentPassword} className="pt-2 border-t border-slate-100 space-y-2.5 animate-in fade-in duration-150">
-                        {passwordFeedback && (
-                          <div className={`p-2.5 rounded-xl text-xs font-bold flex items-start gap-2 ${
-                            passwordFeedback.type === 'success'
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                              : 'bg-rose-50 text-rose-800 border border-rose-200'
-                          }`}>
-                            {passwordFeedback.type === 'success' ? (
-                              <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
-                            ) : (
-                              <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
-                            )}
-                            <span>{passwordFeedback.text}</span>
-                          </div>
-                        )}
-
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                            Kata Sandi Baru
-                          </label>
-                          <div className="relative">
-                            <input
-                              type={showPasswordText ? 'text' : 'password'}
-                              value={newPasswordVal}
-                              onChange={(e) => setNewPasswordVal(e.target.value)}
-                              placeholder="Minimal 8 karakter"
-                              required
-                              className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-9 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPasswordText((v) => !v)}
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                            >
-                              {showPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                            Konfirmasi Kata Sandi Baru
-                          </label>
-                          <input
-                            type={showPasswordText ? 'text' : 'password'}
-                            value={confirmPasswordVal}
-                            onChange={(e) => setConfirmPasswordVal(e.target.value)}
-                            placeholder="Ketik ulang kata sandi baru"
-                            required
-                            className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all"
-                          />
-                        </div>
-
-                        <button
-                          type="submit"
-                          disabled={isChangingPassword}
-                          className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
-                        >
-                          <Lock size={13} />
-                          <span>{isChangingPassword ? 'Menyimpan Sandi...' : 'Perbarui Kata Sandi'}</span>
-                        </button>
-                      </form>
-                    )}
-                  </div>
-
                   {/* Profile Bottom Actions */}
                   {currentUser?.role === 'SISWA' ? (
                     <div className="pt-1">
@@ -3836,11 +3636,11 @@ export const PortalSiswaView: React.FC = () => {
               )}
 
               {/* ----------------------------------------------------------------- */}
-              {/* TAB 2: APLIKASI (PENGATURAN NOTIFIKASI SAMA SEPERTI BADGE LONCENG) */}
+              {/* TAB 2: APLIKASI (NOTIFIKASI, SUARA, KEAMANAN / KATA SANDI) */}
               {/* ----------------------------------------------------------------- */}
               {pengaturanTab === 'aplikasi' && (
                 <div className="space-y-4 animate-in fade-in duration-150">
-                  {/* HERO NOTIFIKASI CARD (FUNGSI PERSIS SAMA SEPERTI BADGE LONCENG) */}
+                  {/* 1. FITUR NOTIFIKASI (FUNGSI PERSIS SAMA SEPERTI BADGE LONCENG BERANDA) */}
                   <div className={`rounded-3xl border p-4.5 space-y-3.5 transition-all shadow-xs ${
                     devicePushActive
                       ? 'bg-gradient-to-br from-blue-50 via-white to-sky-50/50 border-blue-200/90'
@@ -3944,76 +3744,12 @@ export const PortalSiswaView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* KARTU STATUS IZIN PERAMBAN & PERANGKAT */}
-                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
-                      Informasi Perizinan & Perangkat
-                    </span>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
-                        <span className="text-[10px] font-bold text-slate-400 block">
-                          Izin Browser
-                        </span>
-                        <div className="flex items-center gap-1.5 font-black text-slate-900">
-                          {typeof window !== 'undefined' && 'Notification' in window ? (
-                            Notification.permission === 'granted' ? (
-                              <span className="text-emerald-600 flex items-center gap-1">
-                                <CheckCircle2 size={13} />
-                                <span>Diizinkan</span>
-                              </span>
-                            ) : Notification.permission === 'denied' ? (
-                              <span className="text-rose-600 flex items-center gap-1">
-                                <XCircle size={13} />
-                                <span>Diblokir</span>
-                              </span>
-                            ) : (
-                              <span className="text-amber-600 flex items-center gap-1">
-                                <Clock size={13} />
-                                <span>Belum Meminta</span>
-                              </span>
-                            )
-                          ) : (
-                            <span className="text-slate-500">Tidak Didukung</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
-                        <span className="text-[10px] font-bold text-slate-400 block">
-                          Perangkat Terdeteksi
-                        </span>
-                        <span className="font-black text-slate-900 truncate block text-[11px]">
-                          {detectDeviceName()}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Alert jika perizinan browser diblokir */}
-                    {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'denied' && (
-                      <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
-                        <div className="flex items-center gap-1.5 font-black text-amber-800">
-                          <AlertTriangle size={14} className="shrink-0" />
-                          <span>Izin Notifikasi Diblokir Browser</span>
-                        </div>
-                        <p className="text-[11px] leading-relaxed text-amber-800/90 font-medium">
-                          Browser Anda telah memblokir notifikasi untuk situs ini. Untuk mengaktifkannya kembali, ketuk ikon gembok / setelan di bilah alamat URL peramban, lalu pilih <b>Izinkan Notifikasi</b>.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* KARTU PREFERENSI SUARA & GETARAN */}
+                  {/* 2. FITUR SUARA (FEEDBACK PRESENSI) */}
                   <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3.5">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
-                      Preferensi Interaksi & Feedback
-                    </span>
-
-                    {/* 1. Suara Chime Presensi */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                          {soundFeedbackEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                        <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                          {soundFeedbackEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
                         </div>
                         <div>
                           <h4 className="text-xs font-black text-slate-900 leading-tight">
@@ -4033,7 +3769,7 @@ export const PortalSiswaView: React.FC = () => {
                               playChimeSuccess();
                               triggerHaptic('tap');
                             }}
-                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 px-2 py-1 rounded-lg bg-blue-50 cursor-pointer"
+                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 px-2.5 py-1 rounded-xl bg-blue-50 border border-blue-100 cursor-pointer shadow-2xs active:scale-95 transition-all"
                             title="Uji dengar nada suara"
                           >
                             Uji
@@ -4062,62 +3798,86 @@ export const PortalSiswaView: React.FC = () => {
                         </button>
                       </div>
                     </div>
+                  </div>
 
-                    {/* 2. Getaran Haptik */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                          <Vibrate size={16} />
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-black text-slate-900 leading-tight">
-                            Getar Halus (Haptic)
-                          </h4>
-                          <span className="text-[11px] text-slate-500 font-medium block">
-                            Getaran lembut saat menyentuh tombol
-                          </span>
-                        </div>
+                  {/* 3. FITUR KEAMANAN (KATA SANDI SISWA) */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                        <KeyRound size={18} />
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        {hapticFeedbackEnabled && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (typeof navigator !== 'undefined' && navigator.vibrate) {
-                                navigator.vibrate(45);
-                              }
-                            }}
-                            className="text-[10px] font-bold text-purple-600 hover:text-purple-800 px-2 py-1 rounded-lg bg-purple-50 cursor-pointer"
-                            title="Uji coba getar"
-                          >
-                            Uji
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = !hapticFeedbackEnabled;
-                            setHapticFeedbackEnabled(next);
-                            try {
-                              localStorage.setItem('kawacanaan_haptic_feedback', String(next));
-                            } catch (_) {}
-                            if (next && typeof navigator !== 'undefined' && navigator.vibrate) {
-                              navigator.vibrate(25);
-                            }
-                          }}
-                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                            hapticFeedbackEnabled ? 'bg-blue-600' : 'bg-slate-300'
-                          }`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                              hapticFeedbackEnabled ? 'translate-x-5' : 'translate-x-0'
-                            }`}
-                          />
-                        </button>
+                      <div>
+                        <h4 className="text-xs font-black text-slate-900 leading-tight">
+                          Keamanan & Kata Sandi
+                        </h4>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Perbarui kata sandi login akun siswa
+                        </span>
                       </div>
                     </div>
+
+                    <form onSubmit={handleChangeStudentPassword} className="pt-2 border-t border-slate-100 space-y-2.5">
+                      {passwordFeedback && (
+                        <div className={`p-2.5 rounded-xl text-xs font-bold flex items-start gap-2 ${
+                          passwordFeedback.type === 'success'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-rose-50 text-rose-800 border border-rose-200'
+                        }`}>
+                          {passwordFeedback.type === 'success' ? (
+                            <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                          ) : (
+                            <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+                          )}
+                          <span>{passwordFeedback.text}</span>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                          Kata Sandi Baru
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showPasswordText ? 'text' : 'password'}
+                            value={newPasswordVal}
+                            onChange={(e) => setNewPasswordVal(e.target.value)}
+                            placeholder="Minimal 8 karakter"
+                            required
+                            className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-9 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPasswordText((v) => !v)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            {showPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                          Konfirmasi Kata Sandi Baru
+                        </label>
+                        <input
+                          type={showPasswordText ? 'text' : 'password'}
+                          value={confirmPasswordVal}
+                          onChange={(e) => setConfirmPasswordVal(e.target.value)}
+                          placeholder="Ketik ulang kata sandi baru"
+                          required
+                          className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isChangingPassword}
+                        className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+                      >
+                        <Lock size={13} />
+                        <span>{isChangingPassword ? 'Menyimpan Sandi...' : 'Perbarui Kata Sandi'}</span>
+                      </button>
+                    </form>
                   </div>
                 </div>
               )}
