@@ -183,12 +183,31 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       Paket Aktif: {isTeacherPro ? 'Paket Guru Pro' : 'Paket Gratis'}
                     </span>
                     <span className="text-xs font-semibold text-slate-700 truncate block">
-                      {isTeacherPro ? 'Status Dukungan Aktif' : 'Bantu kami menjaga aplikasi tetap aktif'}
+                      {isTeacherPro ? (
+                        currentUser.subscriptionExpiresAt ? (
+                          `Lisensi Aktif s.d. ${new Date(currentUser.subscriptionExpiresAt).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                          })}`
+                        ) : 'Status Dukungan Aktif'
+                      ) : 'Bantu kami menjaga aplikasi tetap aktif'}
                     </span>
                   </div>
                 </div>
 
-                {!isTeacherPro && (
+                {isTeacherPro ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      openUpgradeModal();
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold text-xs transition-colors shrink-0 cursor-pointer"
+                  >
+                    Dukung Lagi
+                  </button>
+                ) : (
                   <button
                     type="button"
                     onClick={() => {

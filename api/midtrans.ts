@@ -33,6 +33,82 @@ export function normalizePlan(rawPlan?: string | null): 'guru_gratis' | 'guru_pr
 }
 
 /**
+ * Menghitung durasi aktif lisensi Paket Guru (dalam bulan) berdasarkan nominal pembayaran riil:
+ * - Pembayaran Rp1 sampai Rp5.000: 1 bulan
+ * - Pembayaran Rp5.001 sampai Rp10.000: 2 bulan
+ * - Pembayaran Rp10.001 sampai Rp15.000: 3 bulan
+ * - Pembayaran Rp15.001 sampai Rp20.000: 4 bulan
+ * - Pembayaran Rp20.001 sampai Rp25.000: 5 bulan
+ * - Pembayaran Rp25.001 sampai Rp30.000: 6 bulan
+ * - Pembayaran Rp30.001 sampai Rp35.000: 7 bulan
+ * - Pembayaran Rp35.001 sampai Rp40.000: 8 bulan
+ * - Pembayaran Rp40.001 sampai Rp45.000: 9 bulan
+ * - Pembayaran Rp45.001 sampai Rp50.000: 10 bulan
+ * - Pembayaran Rp50.001 sampai Rp55.000: 11 bulan
+ * - Pembayaran Rp55.001 atau lebih: 12 bulan (1 tahun maksimal)
+ * - Nominal <= 0 atau < 1: 0 bulan (tidak aktif)
+ */
+export function calculateTeacherLicenseMonths(amount: number): number {
+  const cleanAmount = Number(amount) || 0;
+  if (cleanAmount < 1) return 0;
+  if (cleanAmount <= 5000) return 1;
+  if (cleanAmount <= 10000) return 2;
+  if (cleanAmount <= 15000) return 3;
+  if (cleanAmount <= 20000) return 4;
+  if (cleanAmount <= 25000) return 5;
+  if (cleanAmount <= 30000) return 6;
+  if (cleanAmount <= 35000) return 7;
+  if (cleanAmount <= 40000) return 8;
+  if (cleanAmount <= 45000) return 9;
+  if (cleanAmount <= 50000) return 10;
+  if (cleanAmount <= 55000) return 11;
+  return 12; // Rp55.001 ke atas dibatasi maksimal 12 bulan (1 tahun)
+}
+
+/**
+ * Menghitung tanggal kedaluwarsa baru secara konsisten:
+ * Untuk Paket Guru:
+ * - Jika pengguna paket gratis mengaktifkan paket guru, durasi lisensi dihitung mulai dari tanggal aktivasi pembayaran yang berhasil (now).
+ * - Jika pengguna sudah memiliki paket guru yang masih aktif, durasi ditambahkan dari tanggal kedaluwarsa saat ini.
+ * - Durasi maksimal lisensi yang diberikan untuk satu transaksi pembayaran adalah 12 bulan.
+ */
+export function calculateNewExpiry(
+  targetPlan: 'guru_pro' | 'sekolah_pro',
+  grossAmount: number,
+  currentExpiryStr: string | null | undefined,
+  currentPlanStr: string | null | undefined
+): { durationMonths: number; durationDays: number; newExpiry: Date | null } {
+  const now = new Date();
+  if (targetPlan === 'sekolah_pro') {
+    const isYearly = grossAmount >= 200000;
+    const durationDays = isYearly ? 365 : 30;
+    const currentExpiry = currentExpiryStr ? new Date(currentExpiryStr) : now;
+    const baseDate = (!isNaN(currentExpiry.getTime()) && currentExpiry > now) ? currentExpiry : now;
+    const newExpiry = new Date(baseDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    return { durationMonths: isYearly ? 12 : 1, durationDays, newExpiry };
+  }
+
+  // targetPlan === 'guru_pro'
+  const months = calculateTeacherLicenseMonths(grossAmount);
+  if (months <= 0) {
+    return { durationMonths: 0, durationDays: 0, newExpiry: null };
+  }
+
+  const isAlreadyActivePro = normalizePlan(currentPlanStr) === 'guru_pro';
+  let baseDate = now;
+  if (isAlreadyActivePro && currentExpiryStr) {
+    const curExp = new Date(currentExpiryStr);
+    if (!isNaN(curExp.getTime()) && curExp > now) {
+      baseDate = curExp;
+    }
+  }
+
+  const newExpiry = new Date(baseDate);
+  newExpiry.setMonth(newExpiry.getMonth() + months);
+  return { durationMonths: months, durationDays: months * 30, newExpiry };
+}
+
+/**
  * Pengecekan & downgrade aman untuk paket yang telah kedaluwarsa.
  * Aturan:
  * - Paket Guru expired -> simpan schools.plan = guru_gratis
@@ -336,18 +412,13 @@ export default async function handler(req: any, res: any, env?: any) {
       });
     } else {
       const teachConfig = packagesConfig?.guru_pro;
-      const monthly = teachConfig?.hargaBulanan ?? teachConfig?.harga ?? 5000;
-      const yearly = teachConfig?.hargaTahunan ?? 60000;
+      const basePrice = teachConfig?.harga ?? 5000;
 
       return json(res, 200, {
         ok: true,
         plan_id: 'guru_pro',
-        monthly_amount: monthly,
-        yearly_amount: yearly,
-        yearly_regular_amount: yearly,
-        is_first_time: true,
-        discount_amount: 0,
-        note: 'Paket Guru Pro: Rp5.000/bln atau Rp60.000/thn',
+        base_amount: basePrice,
+        note: 'Paket Guru: Aktivasi lisensi berdasarkan nominal pembayaran Midtrans bertingkat (1 s.d. 12 bulan)',
       });
     }
   }
@@ -411,6 +482,19 @@ export default async function handler(req: any, res: any, env?: any) {
       .single();
 
     if (existingPayment) {
+      // 1. Guard Idempotensi: Jika transaksi ini sudah berstatus SETTLED, jangan tambahkan lisensi berulang kali
+      const isAlreadySettled =
+        existingPayment.status === 'SETTLED' ||
+        existingPayment.status === 'settlement' ||
+        existingPayment.status === 'capture';
+
+      if (isAlreadySettled && isSuccess) {
+        console.log(`[Midtrans Webhook] Transaksi ${order_id} sudah lunas (SETTLED) sebelumnya. Mengabaikan eksekusi duplikat.`);
+        return json(res, 200, { ok: true, message: 'Transaksi telah diproses sebelumnya.' });
+      }
+
+      const verifiedGross = Number(gross_amount || existingPayment.amount || 0);
+
       // Update status pembayaran
       await db
         .from('payments')
@@ -418,11 +502,18 @@ export default async function handler(req: any, res: any, env?: any) {
           status: dbStatus,
           payment_method: payment_type || 'MIDTRANS',
           paid_at: isSuccess ? new Date().toISOString() : existingPayment.paid_at,
+          total_amount: verifiedGross > 0 ? verifiedGross : existingPayment.total_amount,
         })
         .eq('invoice_no', order_id);
 
       // Jika berhasil, perpanjang masa aktif langganan sekolah / guru
       if (isSuccess && existingPayment.school_id) {
+        // Jika nominal pembayaran Rp0 atau kurang dari Rp1, sistem tidak memberikan aktivasi lisensi.
+        if (verifiedGross < 1) {
+          console.warn(`[Midtrans Webhook] Nominal pembayaran Rp0 atau kurang dari Rp1 (${verifiedGross}). Lisensi tidak diaktifkan.`);
+          return json(res, 200, { ok: true, message: 'Nominal kurang dari Rp1. Lisensi tidak diaktifkan.' });
+        }
+
         const { data: school } = await db
           .from('schools')
           .select('*')
@@ -430,23 +521,21 @@ export default async function handler(req: any, res: any, env?: any) {
           .single();
 
         if (school) {
-          const isYearly =
-            existingPayment.plan_name?.toLowerCase().includes('tahun') ||
-            existingPayment.amount >= 200000;
-          const durationDays = isYearly ? 365 : 30;
-
-          // Hitung tanggal kedaluwarsa baru
-          const now = new Date();
-          const currentExpiry = school.subscription_expires_at
-            ? new Date(school.subscription_expires_at)
-            : now;
-
-          const baseDate = currentExpiry > now ? currentExpiry : now;
-          const newExpiry = new Date(baseDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
-
-          const targetPlan = existingPayment.plan_name?.toLowerCase().includes('guru')
+          const targetPlan = existingPayment.plan_name?.toLowerCase().includes('guru') || existingPayment.invoice_no?.includes('GRU')
             ? 'guru_pro'
             : 'sekolah_pro';
+
+          const { durationMonths, durationDays, newExpiry } = calculateNewExpiry(
+            targetPlan,
+            verifiedGross,
+            school.subscription_expires_at,
+            school.plan
+          );
+
+          if (!newExpiry) {
+            console.warn(`[Midtrans Webhook] Durasi lisensi 0 bulan untuk order ${order_id}. Lisensi tidak diperpanjang.`);
+            return json(res, 200, { ok: true, message: 'Durasi lisensi 0 bulan.' });
+          }
 
           const updatePayload: any = {
             status: 'active',
@@ -474,6 +563,18 @@ export default async function handler(req: any, res: any, env?: any) {
             .update(updatePayload)
             .eq('id', school.id);
 
+          // Update juga profil pengguna guru yang bernaung di bawah school_id ini
+          try {
+            await db
+              .from('profiles')
+              .update({
+                subscription_plan: targetPlan,
+                subscription_status: 'active',
+                subscription_expires_at: newExpiry.toISOString(),
+              })
+              .eq('school_id', school.id);
+          } catch (_) {}
+
           // Catat audit log
           await db.from('audit_logs').insert({
             school_id: school.id,
@@ -482,7 +583,9 @@ export default async function handler(req: any, res: any, env?: any) {
             action: 'MIDTRANS_PAYMENT_SETTLED',
             details: {
               order_id,
-              gross_amount,
+              gross_amount: verifiedGross,
+              duration_months: durationMonths,
+              duration_days: durationDays,
               payment_type,
               previous_expiry: school.subscription_expires_at,
               new_expiry: newExpiry.toISOString(),
@@ -665,11 +768,11 @@ export default async function handler(req: any, res: any, env?: any) {
         planTitle = 'Paket Sekolah Pro (1 Bulan)';
       }
     } else {
+      const customAmount = Number(b.amount || b.gross_amount);
       const teachConfig = packagesConfig?.guru_pro;
-      amount = isYearly
-        ? (teachConfig?.hargaTahunan ?? 60000)
-        : (teachConfig?.hargaBulanan ?? teachConfig?.harga ?? 5000);
-      planTitle = `Paket Guru Pro (${isYearly ? '1 Tahun' : '1 Bulan'})`;
+      const baseDefaultAmount = Number(teachConfig?.harga) || 5000;
+      amount = (customAmount && customAmount >= 1) ? customAmount : baseDefaultAmount;
+      planTitle = 'Dukungan Pengembangan Paket Guru';
     }
 
     // Buat Order ID Unik
@@ -834,11 +937,22 @@ export default async function handler(req: any, res: any, env?: any) {
       .maybeSingle();
 
     if (localPayment && localPayment.status === 'SETTLED') {
+      let latestExpiry: string | null = null;
+      if (localPayment.school_id) {
+        const { data: sch } = await db
+          .from('schools')
+          .select('subscription_expires_at')
+          .eq('id', localPayment.school_id)
+          .maybeSingle();
+        latestExpiry = sch?.subscription_expires_at || null;
+      }
       return json(res, 200, {
         ok: true,
         status: 'settlement',
         is_settled: true,
         payment: localPayment,
+        gross_amount: localPayment.total_amount || localPayment.amount,
+        expires_at: latestExpiry,
         message: 'Transaksi sudah LUNAS terverifikasi di sistem.',
       });
     }
@@ -892,69 +1006,90 @@ export default async function handler(req: any, res: any, env?: any) {
           .eq('invoice_no', orderId);
 
         if (existingPayment && existingPayment.status !== 'SETTLED' && existingPayment.school_id) {
+          const verifiedGross = Number(data.gross_amount || existingPayment.amount || 0);
           const { data: school } = await db
             .from('schools')
             .select('*')
             .eq('id', existingPayment.school_id)
             .single();
 
-          if (school) {
-            const isYearly =
-              existingPayment.plan_name?.toLowerCase().includes('tahun') ||
-              existingPayment.amount >= 200000;
-            const durationDays = isYearly ? 365 : 30;
-
-            const now = new Date();
-            const currentExpiry = school.subscription_expires_at
-              ? new Date(school.subscription_expires_at)
-              : now;
-
-            const baseDate = currentExpiry > now ? currentExpiry : now;
-            const newExpiry = new Date(baseDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
-
-            const targetPlan = existingPayment.plan_name?.toLowerCase().includes('guru')
+          if (school && verifiedGross >= 1) {
+            const targetPlan = existingPayment.plan_name?.toLowerCase().includes('guru') || existingPayment.invoice_no?.includes('GRU')
               ? 'guru_pro'
               : 'sekolah_pro';
 
-            const updatePayload: any = {
-              status: 'active',
-              plan: targetPlan,
-              subscription_expires_at: newExpiry.toISOString(),
-            };
-            if (targetPlan === 'sekolah_pro') {
-              updatePayload.max_teachers = 100;
-              updatePayload.max_students = 1200;
-              updatePayload.max_classes = 24;
-            } else if (targetPlan === 'guru_pro') {
-              const { data: userProf } = await db
-                .from('profiles')
-                .select('role')
-                .eq('school_id', school.id)
-                .maybeSingle();
-              const isSubject = (userProf?.role || '').toUpperCase().trim() === 'GURU MAPEL';
-              updatePayload.max_teachers = 1;
-              updatePayload.max_students = isSubject ? 300 : 50;
-              updatePayload.max_classes = isSubject ? 6 : 1;
+            const { durationMonths, durationDays, newExpiry } = calculateNewExpiry(
+              targetPlan,
+              verifiedGross,
+              school.subscription_expires_at,
+              school.plan
+            );
+
+            if (newExpiry) {
+              const updatePayload: any = {
+                status: 'active',
+                plan: targetPlan,
+                subscription_expires_at: newExpiry.toISOString(),
+              };
+              if (targetPlan === 'sekolah_pro') {
+                updatePayload.max_teachers = 100;
+                updatePayload.max_students = 1200;
+                updatePayload.max_classes = 24;
+              } else if (targetPlan === 'guru_pro') {
+                const { data: userProf } = await db
+                  .from('profiles')
+                  .select('role')
+                  .eq('school_id', school.id)
+                  .maybeSingle();
+                const isSubject = (userProf?.role || '').toUpperCase().trim() === 'GURU MAPEL';
+                updatePayload.max_teachers = 1;
+                updatePayload.max_students = isSubject ? 300 : 50;
+                updatePayload.max_classes = isSubject ? 6 : 1;
+              }
+
+              await db
+                .from('schools')
+                .update(updatePayload)
+                .eq('id', school.id);
+
+              try {
+                await db
+                  .from('profiles')
+                  .update({
+                    subscription_plan: targetPlan,
+                    subscription_status: 'active',
+                    subscription_expires_at: newExpiry.toISOString(),
+                  })
+                  .eq('school_id', school.id);
+              } catch (_) {}
+
+              await db.from('audit_logs').insert({
+                school_id: school.id,
+                actor_name: 'Midtrans Status Check',
+                actor_role: 'SYSTEM',
+                action: 'MIDTRANS_STATUS_CHECK_SETTLED',
+                details: {
+                  order_id: orderId,
+                  gross_amount: verifiedGross,
+                  duration_months: durationMonths,
+                  duration_days: durationDays,
+                  previous_expiry: school.subscription_expires_at,
+                  new_expiry: newExpiry.toISOString(),
+                },
+              });
             }
-
-            await db
-              .from('schools')
-              .update(updatePayload)
-              .eq('id', school.id);
-
-            await db.from('audit_logs').insert({
-              school_id: school.id,
-              actor_name: 'Midtrans Status Check',
-              actor_role: 'SYSTEM',
-              action: 'MIDTRANS_STATUS_CHECK_SETTLED',
-              details: {
-                order_id: orderId,
-                previous_expiry: school.subscription_expires_at,
-                new_expiry: newExpiry.toISOString(),
-              },
-            });
           }
         }
+      }
+
+      let checkedExpiry: string | null = null;
+      if (localPayment?.school_id) {
+        const { data: sch } = await db
+          .from('schools')
+          .select('subscription_expires_at')
+          .eq('id', localPayment.school_id)
+          .maybeSingle();
+        checkedExpiry = sch?.subscription_expires_at || null;
       }
 
       return json(res, 200, {
@@ -963,6 +1098,7 @@ export default async function handler(req: any, res: any, env?: any) {
         payment_type: data.payment_type,
         gross_amount: data.gross_amount,
         is_settled: isSuccess,
+        expires_at: checkedExpiry,
       });
     } catch (err: any) {
       return json(res, 500, { error: err.message });
@@ -1041,61 +1177,77 @@ export default async function handler(req: any, res: any, env?: any) {
         .eq('id', targetSchoolId)
         .maybeSingle();
 
-      const isYearly =
-        existingPayment.plan_name?.toLowerCase().includes('tahun') ||
-        existingPayment.amount >= 200000;
-      const durationDays = isYearly ? 365 : 30;
-      const now = new Date();
-      const currentExpiry = school?.subscription_expires_at
-        ? new Date(school.subscription_expires_at)
-        : now;
-      const baseDate = currentExpiry > now ? currentExpiry : now;
-      const newExpiry = new Date(baseDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+      const verifiedGross = Number(existingPayment.amount || existingPayment.total_amount || 0);
 
-      const targetPlan = existingPayment.plan_name?.toLowerCase().includes('guru')
-        ? 'guru_pro'
-        : 'sekolah_pro';
+      if (school && verifiedGross >= 1) {
+        const targetPlan = existingPayment.plan_name?.toLowerCase().includes('guru') || existingPayment.invoice_no?.includes('GRU')
+          ? 'guru_pro'
+          : 'sekolah_pro';
 
-      const updatePayload: any = {
-        status: 'active',
-        plan: targetPlan,
-        subscription_expires_at: newExpiry.toISOString(),
-      };
-      if (targetPlan === 'sekolah_pro') {
-        updatePayload.max_teachers = 100;
-        updatePayload.max_students = 1200;
-        updatePayload.max_classes = 24;
-      } else if (targetPlan === 'guru_pro') {
-        const { data: userProf } = await db
-          .from('profiles')
-          .select('role')
-          .eq('school_id', targetSchoolId)
-          .maybeSingle();
-        const isSubject = (userProf?.role || '').toUpperCase().trim() === 'GURU MAPEL';
-        updatePayload.max_teachers = 1;
-        updatePayload.max_students = isSubject ? 300 : 50;
-        updatePayload.max_classes = isSubject ? 6 : 1;
+        const { durationMonths, durationDays, newExpiry } = calculateNewExpiry(
+          targetPlan,
+          verifiedGross,
+          school.subscription_expires_at,
+          school.plan
+        );
+
+        if (newExpiry) {
+          const updatePayload: any = {
+            status: 'active',
+            plan: targetPlan,
+            subscription_expires_at: newExpiry.toISOString(),
+          };
+          if (targetPlan === 'sekolah_pro') {
+            updatePayload.max_teachers = 100;
+            updatePayload.max_students = 1200;
+            updatePayload.max_classes = 24;
+          } else if (targetPlan === 'guru_pro') {
+            const { data: userProf } = await db
+              .from('profiles')
+              .select('role')
+              .eq('school_id', targetSchoolId)
+              .maybeSingle();
+            const isSubject = (userProf?.role || '').toUpperCase().trim() === 'GURU MAPEL';
+            updatePayload.max_teachers = 1;
+            updatePayload.max_students = isSubject ? 300 : 50;
+            updatePayload.max_classes = isSubject ? 6 : 1;
+          }
+
+          await db
+            .from('schools')
+            .update(updatePayload)
+            .eq('id', targetSchoolId);
+
+          try {
+            await db
+              .from('profiles')
+              .update({
+                subscription_plan: targetPlan,
+                subscription_status: 'active',
+                subscription_expires_at: newExpiry.toISOString(),
+              })
+              .eq('school_id', targetSchoolId);
+          } catch (_) {}
+
+          // Catat audit log
+          try {
+            await db.from('audit_logs').insert({
+              school_id: targetSchoolId,
+              actor_name: `SuperAdmin (${callerProfile?.name || callerUser.user.email || 'Admin'})`,
+              actor_role: 'SUPER_ADMIN',
+              action: 'MIDTRANS_SIMULATED_SETTLEMENT',
+              details: {
+                order_id: orderId,
+                gross_amount: verifiedGross,
+                duration_months: durationMonths,
+                duration_days: durationDays,
+                previous_expiry: school.subscription_expires_at,
+                new_expiry: newExpiry.toISOString(),
+              },
+            });
+          } catch (_) {}
+        }
       }
-
-      await db
-        .from('schools')
-        .update(updatePayload)
-        .eq('id', targetSchoolId);
-
-      // Catat audit log
-      try {
-        await db.from('audit_logs').insert({
-          school_id: targetSchoolId,
-          actor_name: `SuperAdmin (${callerProfile?.name || callerUser.user.email || 'Admin'})`,
-          actor_role: 'SUPER_ADMIN',
-          action: 'MIDTRANS_SIMULATED_SETTLEMENT',
-          details: {
-            order_id: orderId,
-            gross_amount: existingPayment.amount,
-            new_expiry: newExpiry.toISOString(),
-          },
-        });
-      } catch (_) {}
     }
 
     return json(res, 200, {

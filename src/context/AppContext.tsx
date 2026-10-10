@@ -31,7 +31,7 @@ import { normalizeTeacherName, normalizeNip } from "../utils/userScope";
 import { isFeatureAccessibleInPackage } from "../utils/featureRegistry";
 import { getServerNow, formatServerTimeString, formatServerDateString, syncServerTime } from "../utils/serverTime";
 import { isUserInActiveSchoolPlan } from "../utils/tenantLifecycle";
-import { normalizePlan, normalizeWorkspaceType } from "../utils/packageSystem";
+import { normalizePlan, normalizeWorkspaceType, calculateTeacherLicenseExpiry } from "../utils/packageSystem";
 import { normalizeClassToken } from "../utils/documentParser";
 import { triggerAttendancePushNotification, triggerLeaveDecisionPushNotification } from "../utils/webPushManager";
 
@@ -224,11 +224,11 @@ interface AppContextType {
   setIsSchoolUpgradeOpen: (open: boolean) => void;
   hasUsedTeacherTrial: boolean;
   activateTeacherTrial: () => Promise<boolean>;
-  createTeacherMidtransTransaction: (billingCycle: 'monthly' | 'yearly') => Promise<any>;
-  completeTeacherUpgrade: (orderId: string, billingCycle: 'monthly' | 'yearly') => Promise<boolean>;
+  createTeacherMidtransTransaction: (amountOrCycle?: number | 'monthly' | 'yearly') => Promise<any>;
+  completeTeacherUpgrade: (orderId: string, amountOrCycle?: number | 'monthly' | 'yearly', verifiedExpiresAt?: string | null) => Promise<boolean>;
   createSchoolMidtransTransaction: (schoolData: any, billingCycle: 'monthly' | 'yearly') => Promise<any>;
   completeSchoolUpgrade: (schoolData: any, orderId: string, billingCycle: 'monthly' | 'yearly') => Promise<any>;
-  upgradeToTeacherPro: (billingCycle: 'monthly' | 'yearly') => Promise<boolean>;
+  upgradeToTeacherPro: (amountOrCycle?: number | 'monthly' | 'yearly') => Promise<boolean>;
   upgradeToSchoolWorkspace: (schoolData: any) => Promise<{ success: boolean; schoolCode: string }>;
   requestFeatureAccess: (
     featureId: string,
@@ -8782,8 +8782,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   // 2. Buat Transaksi Midtrans untuk Paket Guru
+  // 2. Buat Transaksi Midtrans untuk Paket Guru (Dukungan Fleksibel)
   const createTeacherMidtransTransaction = async (
-    billingCycle: 'monthly' | 'yearly'
+    amountOrCycle?: number | 'monthly' | 'yearly'
   ): Promise<any> => {
     try {
       // Validasi Aturan Hierarki: Pengguna di sekolah yang aktif Paket Sekolah Pro DILARANG membeli Paket Guru
@@ -8794,6 +8795,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         throw new Error(msg);
       }
 
+      const numAmount = typeof amountOrCycle === 'number' ? amountOrCycle : 5000;
       const targetSchoolId = currentUser?.schoolId || activeWorkspace?.workspaceId || null;
       const res = await fetch('/api/midtrans', {
         method: 'POST',
@@ -8801,7 +8803,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         body: JSON.stringify({
           action: 'create_transaction',
           plan_id: 'teacher',
-          billing_cycle: billingCycle,
+          amount: numAmount,
           school_id: targetSchoolId,
           user_id: currentUser?.id || null,
           contact_name:
@@ -8827,11 +8829,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   // 3. Selesaikan Upgrade Paket Guru setelah Pembayaran Midtrans Berhasil
   const completeTeacherUpgrade = async (
     orderId: string,
-    billingCycle: 'monthly' | 'yearly'
+    amountOrCycle?: number | 'monthly' | 'yearly',
+    verifiedExpiresAt?: string | null
   ): Promise<boolean> => {
     try {
-      const days = billingCycle === 'yearly' ? 365 : 30;
-      const expiresAt = new Date(Date.now() + days * 86400000).toISOString();
+      let expiresAt = verifiedExpiresAt;
+      if (!expiresAt && orderId) {
+        try {
+          const chkRes = await fetch(`/api/midtrans?action=check_status&order_id=${encodeURIComponent(orderId)}`);
+          const chkData = await chkRes.json();
+          if (chkData?.expires_at) {
+            expiresAt = chkData.expires_at;
+          } else if (chkData?.payment?.expires_at) {
+            expiresAt = chkData.payment.expires_at;
+          }
+        } catch (_) {}
+      }
+
+      if (!expiresAt) {
+        const paidAmount = typeof amountOrCycle === 'number' ? amountOrCycle : 5000;
+        const curExp = activeWorkspace?.subscription?.expiresAt || currentUser?.subscriptionExpiresAt || null;
+        const calc = calculateTeacherLicenseExpiry(paidAmount, curExp, currentUser?.subscriptionPlan === 'guru_pro');
+        expiresAt = calc.newExpiry ? calc.newExpiry.toISOString() : new Date(Date.now() + 30 * 86400000).toISOString();
+      }
+
       const targetSchoolId = activeWorkspace?.workspaceId || currentUser?.schoolId;
 
       const isSubjectTeacher = currentUser?.role === 'GURU MAPEL' || activeWorkspace?.role === 'GURU MAPEL';

@@ -91,20 +91,14 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onOpenRegister, 
       name: isId ? 'Paket Guru' : 'Teacher Plan',
       workspaceType: isId ? 'Ruang Kerja Individu' : 'Teacher Workspace',
       workspaceIcon: Users,
-      price: billingCycle === 'monthly'
-        ? formatRupiah(teacherMonthlyPrice)
-        : formatRupiah(teacherYearlyPrice),
-      period: billingCycle === 'monthly'
-        ? (isId ? '/bulan' : '/month')
-        : (isId ? '/tahun' : '/year'),
+      price: isId ? 'Dukungan Sukarela' : 'Voluntary Support',
+      period: isId ? 'via Midtrans' : 'via Midtrans',
       originalPrice: null,
-      savingsBadge: billingCycle === 'yearly'
-        ? (isId ? 'Aktif 1 Tahun Penuh' : 'Full 1 Year Access')
-        : null,
+      savingsBadge: null,
       subNote: null,
       tagline: isId
-        ? 'Solusi lengkap bagi wali kelas atau guru mapel yang mengajar beberapa rombel belajar.'
-        : 'Complete solution for homeroom or subject specialist teachers managing multiple classes.',
+        ? 'Dukungan pengembangan untuk mengaktifkan fitur lengkap Wali Kelas & Guru Mapel.'
+        : 'Development support to unlock complete features for homeroom & subject teachers.',
       highlight: false,
       isPopular: true,
       badge: isId ? 'Paling Populer' : 'Most Popular',
@@ -117,8 +111,8 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onOpenRegister, 
         isId ? 'Ekspor Rekap Semester PDF & Excel' : 'Semester PDF & Excel Recap Export',
         isId ? 'Bantuan Teknis Cepat via WhatsApp' : 'Fast WhatsApp Technical Support'
       ],
-      ctaText: isId ? 'Pilih Paket Guru' : 'Select Teacher Plan',
-      paymentNote: isId ? 'QRIS / REAL-TIME SETTLEMENT' : 'QRIS / REAL-TIME SETTLEMENT',
+      ctaText: isId ? 'Dukung via Midtrans' : 'Support via Midtrans',
+      paymentNote: isId ? 'QRIS / MIDTRANS RESMI' : 'QRIS / OFFICIAL MIDTRANS',
     },
 
     // -------------------------------------------------------------

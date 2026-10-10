@@ -58,6 +58,7 @@ interface PaymentSessionData {
   schoolId?: string;
   schoolCode?: string;
   status: 'PENDING' | 'SETTLED' | 'EXPIRED';
+  expiresAt?: string | null;
 }
 
 interface RegistrationSuccessData {
@@ -72,6 +73,7 @@ interface RegistrationSuccessData {
   billingCycle: BillingCycle;
   amount: number;
   expiresInDays: number;
+  expiresAt?: string | null;
 }
 
 export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
@@ -392,7 +394,12 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
       if (!res.ok) throw new Error(body.error || 'Gagal memeriksa status pembayaran.');
 
       if (body.is_settled || body.status === 'settlement' || body.status === 'capture') {
-        handleCompleteActivation(paymentSession);
+        const updatedSession = paymentSession ? {
+          ...paymentSession,
+          expiresAt: body.expires_at || null,
+          amount: Number(body.gross_amount) || paymentSession.amount,
+        } : null;
+        handleCompleteActivation(updatedSession);
       } else {
         setPaymentCheckMessage(`Status pembayaran: ${body.status || 'PENDING'}. Menunggu transfer.`);
       }
@@ -428,6 +435,7 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
       billingCycle: isYr ? 'yearly' : 'monthly',
       amount: session?.amount || (isYr ? yearlyPrice : monthlyPrice),
       expiresInDays: isYr ? 365 : 30,
+      expiresAt: session?.expiresAt || null,
     });
 
     setStep(4);
@@ -600,15 +608,8 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
                     </p>
                   </div>
 
-                  {/* Badge Paket Sesuai Pilihan Section Harga (Tanpa Opsi Pilihan di Popup) */}
-                  <div className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 self-start sm:self-center border shadow-2xs ${
-                    billingCycle === 'yearly'
-                      ? 'bg-amber-50 text-amber-900 border-amber-300'
-                      : 'bg-blue-50 text-blue-900 border-blue-200'
-                  }`}>
-                    {billingCycle === 'yearly'
-                      ? (lang === 'ID' ? `Paket Guru Tahunan (${formatRupiah(yearlyPrice)}/thn)` : `Yearly Teacher Plan (${formatRupiah(yearlyPrice)}/yr)`)
-                      : (lang === 'ID' ? `Paket Guru Bulanan (${formatRupiah(monthlyPrice)}/bln)` : `Monthly Teacher Plan (${formatRupiah(monthlyPrice)}/mo)`)}
+                  <div className="px-3 py-1 rounded-full text-xs font-bold shrink-0 self-start sm:self-center border shadow-2xs bg-blue-50 text-blue-900 border-blue-200">
+                    {lang === 'ID' ? 'Paket Guru (Dukungan via Midtrans)' : 'Teacher Plan (Support via Midtrans)'}
                   </div>
                 </div>
               </div>
@@ -811,17 +812,8 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
                     </div>
                   )}
 
-                  {/* Badge Paket Sesuai Pilihan Section Harga (Tanpa Opsi Pilihan di Popup) */}
-                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-2xs ${
-                    billingCycle === 'yearly'
-                      ? 'bg-amber-50 text-amber-900 border-amber-300'
-                      : 'bg-blue-50 text-blue-900 border-blue-200'
-                  }`}>
-                    <span>
-                      {billingCycle === 'yearly'
-                        ? (lang === 'ID' ? `Paket Tahunan (${formatRupiah(yearlyPrice)} / thn)` : `Yearly Plan (${formatRupiah(yearlyPrice)} / yr)`)
-                        : (lang === 'ID' ? `Paket Bulanan (${formatRupiah(monthlyPrice)} / bln)` : `Monthly Plan (${formatRupiah(monthlyPrice)} / mo)`)}
-                    </span>
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-2xs bg-blue-50 text-blue-900 border-blue-200">
+                    <span>{lang === 'ID' ? 'Paket Guru (Dukungan via Midtrans)' : 'Teacher Plan (Support via Midtrans)'}</span>
                   </div>
                 </div>
               </div>
@@ -833,8 +825,8 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
                   {lang === 'ID'
-                    ? `Lengkapi data identitas dan akun pendidik Anda (${billingCycle === 'yearly' ? 'Paket Tahunan' : 'Paket Bulanan'}) untuk melanjutkan ke pembayaran.`
-                    : `Fill in your educator account details (${billingCycle === 'yearly' ? 'Yearly Plan' : 'Monthly Plan'}) to proceed to payment.`}
+                    ? 'Lengkapi data identitas dan akun pendidik Anda untuk melanjutkan ke pembayaran via Midtrans.'
+                    : 'Fill in your educator account details to proceed to payment via Midtrans.'}
                 </p>
               </div>
 
@@ -1206,7 +1198,7 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
                   <CheckCircle2 size={14} className="text-emerald-600" />
                   <span>
                     {lang === 'ID'
-                      ? `Paket Guru (${billingCycle === 'yearly' ? 'Tahunan' : 'Bulanan'}) Aktif!`
+                      ? 'Paket Guru Resmi Aktif!'
                       : 'Teacher Workspace Activated!'}
                   </span>
                 </div>
@@ -1215,8 +1207,8 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
                 </h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
                   {lang === 'ID'
-                    ? `Selamat! Ruang Kerja Individu Paket Guru Anda telah aktif selama ${registrationSuccessData.expiresInDays} hari. Silakan unduh atau salin kredensial login Anda di bawah ini.`
-                    : `Congratulations! Your Teacher Workspace is now active for ${registrationSuccessData.expiresInDays} days. Please download your card below.`}
+                    ? 'Selamat! Ruang Kerja Individu Paket Guru Anda telah aktif. Silakan unduh atau salin kredensial login Anda di bawah ini.'
+                    : 'Congratulations! Your Teacher Workspace is now active. Please download your card below.'}
                 </p>
               </div>
 
@@ -1228,8 +1220,10 @@ export const TeacherRegisterModal: React.FC<TeacherRegisterModalProps> = ({
                   personInCharge: `${registrationSuccessData.teacherName} (${registrationSuccessData.role === 'homeroom' ? 'Wali Kelas' : 'Guru Mapel'})`,
                   role: registrationSuccessData.role === 'homeroom' ? 'WALI KELAS' : 'GURU MAPEL',
                   username: registrationSuccessData.username,
-                  password: registrationSuccessData.password || '••••••••',
-                  expiryDateText: `${registrationSuccessData.expiresInDays} Hari (${billingCycle === 'yearly' ? 'Tahunan' : 'Bulanan'})`,
+                  password: password || '••••••••',
+                  expiryDateText: registrationSuccessData.expiresAt
+                    ? `Hingga ${new Date(registrationSuccessData.expiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                    : 'Aktif Terverifikasi',
                   invoiceNo: registrationSuccessData.invoiceNo || `INV-TCH-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`,
                   nominalText: `Rp ${Number(registrationSuccessData.amount || currentPrice).toLocaleString('id-ID')} (LUNAS)`,
                   paymentMethodText: 'Gateway Midtrans Terverifikasi',

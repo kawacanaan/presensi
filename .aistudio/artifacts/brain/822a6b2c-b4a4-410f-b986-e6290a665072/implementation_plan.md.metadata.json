@@ -1,0 +1,6 @@
+{
+  "summary":  "Revisi rencana implementasi: Menghapus input nominal di aplikasi. Modal hanya menampilkan ajakan dukungan sukarela dengan satu tombol aksi langsung ke Midtrans Snap. Midtrans menangani proses pembayaran, lalu webhook backend memverifikasi nominal riil yang dibayar, menghitung masa aktif lisensi (1 s.d. 12 bulan), dan menampilkan tanggal kedaluwarsa setelah pembayaran selesai.",
+  "updatedAt":  "2026-10-10T15:45:13.681807432Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

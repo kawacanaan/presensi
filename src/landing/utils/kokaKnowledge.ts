@@ -137,7 +137,7 @@ export function getKokaLandingResponse(
     // 2d. Jika pengguna sedang melihat section Harga
     if (dynamicContext?.sectionId === 'harga') {
       return {
-        text: 'Yang sedang Bapak/Ibu lihat di layar adalah **Pilihan Paket Lisensi KawaCanaan** 😊\n\n• **Paket Gratis (Rp0)**: Cocok untuk 1 guru kelas mandiri (s.d. 50 siswa, 1 rombel).\n• **Paket Guru (Rp5.000/bln / Rp60.000/thn)**: Untuk Wali Kelas (1 rombel, 50 siswa) atau Guru Mapel (hingga 6 rombel, 300 siswa).\n• **Paket Sekolah (Rp25.000/bln / Rp250.000/thn perdana)**: Untuk 1 sekolah penuh (maks 1.200 siswa, 100 guru, 24 kelas, maks 50 siswa/kelas, hemat 2 bulan untuk pembelian perdana; perpanjangan Rp300.000/thn).',
+        text: 'Yang sedang Bapak/Ibu lihat di layar adalah **Pilihan Paket Lisensi KawaCanaan** 😊\n\n• **Paket Gratis (Rp0)**: Cocok untuk 1 guru kelas mandiri (s.d. 50 siswa, 1 rombel).\n• **Paket Guru (Dukungan via Midtrans)**: Untuk Wali Kelas (1 rombel, 50 siswa) atau Guru Mapel (hingga 6 rombel, 300 siswa) dengan lisensi aktif bertingkat berdasarkan nominal dukungan.\n• **Paket Sekolah (Rp25.000/bln / Rp250.000/thn perdana)**: Untuk 1 sekolah penuh (maks 1.200 siswa, 100 guru, 24 kelas, maks 50 siswa/kelas, hemat 2 bulan untuk pembelian perdana; perpanjangan Rp300.000/thn).',
         category: 'dynamic_pricing',
         suggestions: [],
       };
@@ -360,7 +360,7 @@ export function getKokaLandingResponse(
   // -------------------------------------------------------------
   if (/harga|biaya|paket|langganan|tarif|bayar|gratis|free|sekolah\s*pro|guru\s*pro|berapa/i.test(qLower)) {
     return {
-      text: "Berikut pilihan paket resmi di KawaCanaan Presensi:\n\n1. **Paket Gratis**: **Rp0 (Aktif Selamanya)** — untuk Ruang Kerja Individu, maksimal 50 siswa SD, 1 rombel, presensi harian & unduh Excel.\n2. **Paket Guru**: **Rp5.000 / bulan** (atau **Rp60.000 / tahun**) — Ruang Kerja Individu (Wali Kelas: 1 rombel, 50 siswa; Guru Mapel: hingga 6 rombel, 300 siswa).\n3. **Paket Sekolah**: **Rp25.000 / bulan** (atau **Rp250.000 / tahun** untuk pembelian perdana dengan hemat 2 bulan, perpanjangan tahun berikutnya Rp300.000 / tahun) — Ruang Kerja Sekolah (maksimal 1.200 siswa, 100 guru, 24 kelas, maks 50 siswa/kelas).\n\nPembayaran resmi didukung Midtrans melalui QRIS dan Virtual Account bank terpercaya.",
+      text: "Berikut pilihan paket resmi di KawaCanaan Presensi:\n\n1. **Paket Gratis**: **Rp0 (Aktif Selamanya)** — untuk Ruang Kerja Individu, maksimal 50 siswa SD, 1 rombel, presensi harian & unduh Excel.\n2. **Paket Guru**: **Dukungan Sukarela via Midtrans** — Ruang Kerja Individu (Wali Kelas: 1 rombel, 50 siswa; Guru Mapel: hingga 6 rombel, 300 siswa) dengan lisensi aktif bertingkat berdasarkan nominal dukungan.\n3. **Paket Sekolah**: **Rp25.000 / bulan** (atau **Rp250.000 / tahun** untuk pembelian perdana dengan hemat 2 bulan, perpanjangan tahun berikutnya Rp300.000 / tahun) — Ruang Kerja Sekolah (maksimal 1.200 siswa, 100 guru, 24 kelas, maks 50 siswa/kelas).\n\nPembayaran resmi didukung Midtrans melalui QRIS dan Virtual Account bank terpercaya.",
       category: 'pricing',
       suggestions: [],
     };

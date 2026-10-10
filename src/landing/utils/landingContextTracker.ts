@@ -114,9 +114,9 @@ const SECTION_METADATA: Record<
         description: 'Pendaftaran gratis untuk 1 guru kelas, s.d. 50 siswa, aktif selamanya.',
       },
       {
-        label: 'Pilih Paket Guru (Rp5.000/bln)',
+        label: 'Pilih Paket Guru (Dukungan via Midtrans)',
         target: 'modal_teacher_pro',
-        description: 'Pendaftaran Paket Guru untuk Wali Kelas (1 rombel, 50 siswa) atau Guru Mapel (s.d. 6 rombel, 300 siswa).',
+        description: 'Pendaftaran Paket Guru untuk Wali Kelas (1 rombel, 50 siswa) atau Guru Mapel (s.d. 6 rombel, 300 siswa) melalui dukungan via Midtrans.',
       },
       {
         label: 'Daftar Paket Sekolah (Rp25.000/bln)',
@@ -293,7 +293,7 @@ export function getCurrentLandingContext(lang: 'ID' | 'EN' = 'ID'): LandingDynam
   // 5. Deteksi Paket Harga yang terlihat
   let activePricingPlan: string | null = null;
   if (currentSectionId === 'harga') {
-    activePricingPlan = 'Paket Gratis (Rp0), Paket Guru (Rp5.000/bln / Rp60.000/thn), Paket Sekolah (Rp25.000/bln / Rp250.000/thn perdana & Rp300.000/thn perpanjangan), dan Custom Yayasan';
+    activePricingPlan = 'Paket Gratis (Rp0), Paket Guru (Dukungan via Midtrans), Paket Sekolah (Rp25.000/bln / Rp250.000/thn perdana & Rp300.000/thn perpanjangan), dan Custom Yayasan';
   }
 
   // 6. Kumpulkan CTA di sekitar pengguna

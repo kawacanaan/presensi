@@ -171,6 +171,67 @@ export function getWorkspaceStudentCapacity(
 }
 
 /**
+ * Menghitung durasi aktif lisensi Paket Guru (dalam bulan) berdasarkan nominal pembayaran riil:
+ * - Pembayaran Rp1 sampai Rp5.000: 1 bulan
+ * - Pembayaran Rp5.001 sampai Rp10.000: 2 bulan
+ * - Pembayaran Rp10.001 sampai Rp15.000: 3 bulan
+ * - Pembayaran Rp15.001 sampai Rp20.000: 4 bulan
+ * - Pembayaran Rp20.001 sampai Rp25.000: 5 bulan
+ * - Pembayaran Rp25.001 sampai Rp30.000: 6 bulan
+ * - Pembayaran Rp30.001 sampai Rp35.000: 7 bulan
+ * - Pembayaran Rp35.001 sampai Rp40.000: 8 bulan
+ * - Pembayaran Rp40.001 sampai Rp45.000: 9 bulan
+ * - Pembayaran Rp45.001 sampai Rp50.000: 10 bulan
+ * - Pembayaran Rp50.001 sampai Rp55.000: 11 bulan
+ * - Pembayaran Rp55.001 atau lebih: 12 bulan (1 tahun maksimal)
+ * - Nominal <= 0 atau < 1: 0 bulan (tidak aktif)
+ */
+export function calculateTeacherLicenseMonths(amount: number): number {
+  const cleanAmount = Number(amount) || 0;
+  if (cleanAmount < 1) return 0;
+  if (cleanAmount <= 5000) return 1;
+  if (cleanAmount <= 10000) return 2;
+  if (cleanAmount <= 15000) return 3;
+  if (cleanAmount <= 20000) return 4;
+  if (cleanAmount <= 25000) return 5;
+  if (cleanAmount <= 30000) return 6;
+  if (cleanAmount <= 35000) return 7;
+  if (cleanAmount <= 40000) return 8;
+  if (cleanAmount <= 45000) return 9;
+  if (cleanAmount <= 50000) return 10;
+  if (cleanAmount <= 55000) return 11;
+  return 12; // Rp55.001 ke atas dibatasi maksimal 12 bulan (1 tahun)
+}
+
+/**
+ * Menghitung tanggal kedaluwarsa baru lisensi Paket Guru berdasarkan nominal pembayaran.
+ * Jika pengguna sebelumnya di paket gratis atau lisensi telah habis, durasi dihitung dari sekarang (now).
+ * Jika lisensi guru_pro masih aktif, durasi ditambahkan dari tanggal kedaluwarsa aktif.
+ */
+export function calculateTeacherLicenseExpiry(
+  amount: number,
+  currentExpiry?: string | null,
+  isAlreadyActivePro: boolean = false
+): { months: number; newExpiry: Date | null } {
+  const months = calculateTeacherLicenseMonths(amount);
+  if (months <= 0) return { months: 0, newExpiry: null };
+
+  const now = new Date();
+  let baseDate = now;
+
+  if (isAlreadyActivePro && currentExpiry) {
+    const curExp = new Date(currentExpiry);
+    if (!isNaN(curExp.getTime()) && curExp > now) {
+      baseDate = curExp;
+    }
+  }
+
+  const newExpiry = new Date(baseDate);
+  newExpiry.setMonth(newExpiry.getMonth() + months);
+  return { months, newExpiry };
+}
+
+/**
  * Mendapatkan batas kapasitas guru berdasarkan tipe ruang kerja dan paket
  */
 export function getWorkspaceTeacherCapacity(
@@ -332,18 +393,17 @@ export const DEFAULT_MASTER_PAKET: MasterPaketSettings = {
   },
 
   // -------------------------------------------------------------
-  // 2. PAKET GURU (RUANG KERJA INDIVIDU BERBAYAR)
+  // 2. PAKET GURU (RUANG KERJA INDIVIDU - DUKUNGAN PENGEMBANGAN)
   // -------------------------------------------------------------
   guru_pro: {
     id: 'guru_pro',
     nama: 'Paket Guru',
     tipeRuangKerja: 'personal',
     statusPaket: 'pro',
-    harga: 5000, // Rp 5.000 / bulan
+    harga: 5000, // Nominal dasar dukungan
     hargaBulanan: 5000,
-    hargaTahunan: 60000, // Rp 60.000 / tahun (12 bulan x Rp 5.000)
-    diskonTahunanLabel: 'Aktif 1 Tahun',
-    durasiHari: 30, // Perpanjangan bulanan / tahunan
+    hargaTahunan: 60000,
+    durasiHari: 30,
     kapasitasSiswa: 300, // Hingga 6 rombel x 50 siswa
     kapasitasGuru: 1,
     kapasitasKelas: 6, // Maksimal 6 kelas untuk Guru Mapel
@@ -355,7 +415,7 @@ export const DEFAULT_MASTER_PAKET: MasterPaketSettings = {
       'Ekspor Lengkap PDF & Excel per Semester',
       'Dukungan Bantuan Teknis WhatsApp'
     ],
-    deskripsi: 'Solusi lengkap bagi guru profesional untuk kelola kelas (1 rombel Wali Kelas atau hingga 6 rombel Guru Mapel).'
+    deskripsi: 'Aktivasi lisensi Paket Guru berdasarkan dukungan nominal via Midtrans (1 s.d. 12 bulan).'
   },
 
   // -------------------------------------------------------------

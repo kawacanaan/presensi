@@ -35,7 +35,6 @@ interface PaymentSession {
   snapToken: string | null;
   amount: number;
   planTitle: string;
-  billingCycle: 'monthly' | 'yearly';
 }
 
 export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
@@ -56,11 +55,11 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
 
   // State wizard: 'prompt' | 'paying' | 'success'
   const [step, setStep] = useState<'prompt' | 'paying' | 'success'>('prompt');
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
   const [paymentStatusText, setPaymentStatusText] = useState<string | null>(null);
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
+  const [verifiedExpiresAt, setVerifiedExpiresAt] = useState<string | null>(null);
 
   const pollingRef = useRef<any>(null);
 
@@ -124,10 +123,6 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
 
   const resolvedFeatureName = customTitle || featureInfo?.name;
 
-  const monthlyPrice = 5000;
-  const yearlyPrice = 60000;
-  const currentPrice = billingCycle === 'yearly' ? yearlyPrice : monthlyPrice;
-
   // 1. Launch Midtrans Snap directly
   const handleLaunchSnap = (token: string, orderId: string) => {
     if (!(window as any).snap) {
@@ -159,14 +154,13 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
     setPaymentStatusText(null);
 
     try {
-      const resData = await createTeacherMidtransTransaction(billingCycle);
+      const resData = await createTeacherMidtransTransaction();
 
       const session: PaymentSession = {
         orderId: resData.order_id,
         snapToken: resData.snap_token || null,
-        amount: resData.amount ?? currentPrice,
-        planTitle: resData.plan_title || `Dukungan Pengembangan (${billingCycle === 'yearly' ? '12 Bulan' : '1 Bulan'})`,
-        billingCycle,
+        amount: resData.amount ?? 5000,
+        planTitle: resData.plan_title || 'Dukungan Pengembangan Paket Guru',
       };
 
       setPaymentSession(session);
@@ -204,7 +198,25 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
     }
 
     try {
-      await completeTeacherUpgrade(orderId, billingCycle);
+      let expiryFromCheck: string | null = null;
+      let grossFromCheck = paymentSession?.amount || 5000;
+      try {
+        const checkRes = await fetch(`/api/midtrans?action=check_status&order_id=${encodeURIComponent(orderId)}`);
+        const checkData = await checkRes.json();
+        if (checkData?.expires_at) {
+          expiryFromCheck = checkData.expires_at;
+        } else if (checkData?.payment?.expires_at) {
+          expiryFromCheck = checkData.payment.expires_at;
+        }
+        if (checkData?.gross_amount) {
+          grossFromCheck = Number(checkData.gross_amount) || grossFromCheck;
+        }
+      } catch (_) {}
+
+      await completeTeacherUpgrade(orderId, grossFromCheck, expiryFromCheck);
+      if (expiryFromCheck) {
+        setVerifiedExpiresAt(expiryFromCheck);
+      }
       setStep('success');
     } catch (err: any) {
       showToast(err?.message || 'Gagal memperbarui status paket.', 'error');
@@ -347,143 +359,33 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
               </div>
             ) : (
               <>
-                {/* Section: Bentuk Dukungan */}
-                <div className="space-y-1.5 pt-0.5">
-                  <div>
-                    <h3 className="text-sm sm:text-[15px] font-black text-slate-900 leading-tight">
-                      Bentuk Dukungan
-                    </h3>
-                    <p className="text-[10.5px] sm:text-[11px] text-slate-500 font-normal">
-                      Pilih nominal dukungan yang sesuai dengan kemampuan Anda.
-                    </p>
-                  </div>
-
-                  {/* 2 Support Options: Bulanan & 12 Bulan */}
-                  <div className="grid grid-cols-2 gap-2 sm:gap-2.5 pt-0.5">
-                    {/* Option 1: Bulanan - Rp 5.000 */}
-                    <button
-                      type="button"
-                      onClick={() => setBillingCycle('monthly')}
-                      className={`relative p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-left transition-all cursor-pointer flex flex-col justify-between ${
-                        billingCycle === 'monthly'
-                          ? 'border-2 border-[#1D68F2] bg-[#F2F7FF] shadow-2xs ring-2 ring-blue-500/10'
-                          : 'border border-slate-200 bg-white hover:border-slate-300'
-                      }`}
-                    >
-                      {/* Top Right Check Indicator */}
-                      <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3">
-                        {billingCycle === 'monthly' ? (
-                          <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bg-[#1D68F2] text-white flex items-center justify-center shadow-2xs">
-                            <Check size={10} strokeWidth={3.5} />
-                          </div>
-                        ) : (
-                          <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full border border-slate-300" />
-                        )}
-                      </div>
-
-                      {/* Icon */}
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-[#E8F1FF] text-[#1D68F2] flex items-center justify-center shrink-0 mb-2">
-                        <Heart size={15} className="fill-[#1D68F2] text-[#1D68F2]" />
-                      </div>
-
-                      {/* Text */}
-                      <div>
-                        <span className="text-sm sm:text-base font-black text-slate-900 block tracking-tight">
-                          Rp 5.000
-                        </span>
-                        <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium block">
-                          per bulan
-                        </span>
-                      </div>
-                    </button>
-
-                    {/* Option 2: Tahunan - Rp 60.000 */}
-                    <button
-                      type="button"
-                      onClick={() => setBillingCycle('yearly')}
-                      className={`relative p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-left transition-all cursor-pointer flex flex-col justify-between ${
-                        billingCycle === 'yearly'
-                          ? 'border-2 border-[#1D68F2] bg-[#F2F7FF] shadow-2xs ring-2 ring-blue-500/10'
-                          : 'border border-slate-200 bg-white hover:border-slate-300'
-                      }`}
-                    >
-                      {/* Top Right Check Indicator */}
-                      <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3">
-                        {billingCycle === 'yearly' ? (
-                          <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bg-[#1D68F2] text-white flex items-center justify-center shadow-2xs">
-                            <Check size={10} strokeWidth={3.5} />
-                          </div>
-                        ) : (
-                          <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full border border-slate-300" />
-                        )}
-                      </div>
-
-                      {/* Icon */}
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-[#EFEAFF] text-[#6366F1] flex items-center justify-center shrink-0 mb-2">
-                        <Calendar size={15} className="text-[#6366F1]" />
-                      </div>
-
-                      {/* Text */}
-                      <div>
-                        <span className="text-sm sm:text-base font-black text-slate-900 block tracking-tight">
-                          Rp 60.000
-                        </span>
-                        <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium block">
-                          12 bulan
-                        </span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Total Dukungan Card */}
-                <div className="bg-[#F0FAF4] border border-[#D5EFE1] rounded-xl sm:rounded-2xl p-2.5 sm:p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-[#D4F4E2] text-emerald-600 flex items-center justify-center shrink-0">
-                      <Sprout size={16} className="text-emerald-600" />
-                    </div>
-                    <div>
-                      <span className="text-xs sm:text-[13px] font-bold text-slate-800 block leading-tight">
-                        Total Dukungan
-                      </span>
-                      <span className="text-[10px] sm:text-[10.5px] text-slate-500 font-normal block">
-                        ({billingCycle === 'yearly' ? '12 bulan' : '1 bulan'})
-                      </span>
-                    </div>
-                  </div>
-
-                  <span className="text-base sm:text-lg font-black text-[#1D68F2] tracking-tight">
-                    Rp {currentPrice.toLocaleString('id-ID')}
-                  </span>
-                </div>
-
-                {/* Primary Action Button: "Dukung Sekarang ->" */}
-                <div className="space-y-1.5 pt-0.5">
+                {/* Direct Action Section: "Beri Dukungan via Midtrans" */}
+                <div className="space-y-2 pt-1">
                   <button
                     type="button"
                     onClick={handleUpgradeToTeacher}
                     disabled={isSubmitting}
-                    className="w-full py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-2xl bg-[#1D68F2] hover:bg-[#1557CD] active:bg-[#0F47AB] text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                    className="w-full py-3 px-4 rounded-xl sm:rounded-2xl bg-[#1D68F2] hover:bg-[#1557CD] active:bg-[#0F47AB] text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                     id="btn-upgrade-to-paket-guru"
                   >
                     {isSubmitting ? (
                       <>
                         <RefreshCw size={15} className="animate-spin" />
-                        <span>Menyiapkan Pembayaran...</span>
+                        <span>Menyiapkan Pembayaran Midtrans...</span>
                       </>
                     ) : (
                       <>
                         <Heart size={15} className="fill-white text-white" />
-                        <span>Dukung Sekarang</span>
+                        <span>Beri Dukungan via Midtrans</span>
                         <ArrowRight size={15} strokeWidth={2.5} />
                       </>
                     )}
                   </button>
 
                   {/* Payment Security Note */}
-                  <div className="flex items-center justify-center gap-1.5 text-[10px] sm:text-[11px] text-slate-500 font-medium">
+                  <div className="flex items-center justify-center gap-1.5 text-[10px] sm:text-[11px] text-slate-500 font-medium pt-0.5">
                     <ShieldCheck size={14} className="text-emerald-600 shrink-0" />
-                    <span>Pembayaran aman melalui QRIS, VA & E-Wallet</span>
+                    <span>Pembayaran resmi &amp; aman melalui Midtrans (QRIS, VA Bank &amp; E-Wallet)</span>
                   </div>
                 </div>
               </>
@@ -539,8 +441,8 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
                 <span className="font-mono text-slate-700 text-[11px]">{paymentSession.orderId}</span>
               </div>
               <div className="flex justify-between pt-1.5 border-t border-slate-200 text-xs sm:text-sm font-black text-slate-900">
-                <span>Total Pembayaran:</span>
-                <span className="text-[#1D68F2]">Rp {paymentSession.amount.toLocaleString('id-ID')}</span>
+                <span>Metode Pembayaran:</span>
+                <span className="text-[#1D68F2]">Midtrans (QRIS, VA & E-Wallet)</span>
               </div>
             </div>
 
@@ -603,14 +505,27 @@ export const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
               </p>
             </div>
 
-            <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-3 text-[11px] text-emerald-800 text-left space-y-1">
+            <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-3 text-[11px] text-emerald-800 text-left space-y-1.5">
               <div className="flex items-center gap-2 font-bold">
-                <Check size={13} className="text-emerald-600" />
-                <span>Akses fitur lengkap aktif secara instan</span>
+                <Check size={13} className="text-emerald-600 shrink-0" />
+                <span>Status Akun: Paket Guru Resmi Aktif</span>
               </div>
-              <div className="flex items-center gap-2 font-bold">
-                <Check size={13} className="text-emerald-600" />
-                <span>Status dukungan tercatat aktif di sistem</span>
+              {(verifiedExpiresAt || currentUser?.subscriptionExpiresAt) && (
+                <div className="flex items-center gap-2 font-bold text-emerald-950 bg-emerald-100/90 p-2 rounded-lg border border-emerald-200/70">
+                  <Calendar size={14} className="text-emerald-700 shrink-0" />
+                  <span>
+                    Masa Aktif Lisensi: Hingga{' '}
+                    {new Date(verifiedExpiresAt || currentUser?.subscriptionExpiresAt || '').toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-slate-600 text-[10.5px]">
+                <Check size={13} className="text-emerald-600 shrink-0" />
+                <span>Akses fitur lengkap aktif seketika di ruang kerja Anda</span>
               </div>
             </div>
 
