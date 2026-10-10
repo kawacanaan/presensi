@@ -1382,296 +1382,360 @@ export const PortalSiswaView: React.FC = () => {
           {/* ========================================================================= */}
           {/* SCREEN 1: BERANDA (HOME) */}
           {/* ========================================================================= */}
-          {currentScreen === 'beranda' && (
-            <div className="p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
-              {/* Greeting & Student Circular Avatar */}
-              <div className="flex items-center justify-between pt-2 pb-1">
-                <div>
-                  <span className="text-xs text-slate-500 font-medium block">Halo,</span>
-                  <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-tight">
-                    {activeStudent.nama}
-                  </h1>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs font-semibold text-slate-500">
-                      {formatStudentClass(studentDisplayClassName)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (devicePushActive) {
-                          showToast('Notifikasi presensi sudah aktif pada perangkat ini.', 'info');
-                          return;
-                        }
-                        try {
-                          const perm = await Notification.requestPermission();
-                          if (perm === 'granted') {
-                            const res = await subscribeParentDevice({
-                              studentId: activeStudent.id,
-                              schoolId: activeStudent.schoolId || schoolProfile?.id || currentUser?.schoolId,
-                              parentName: detectDeviceName(),
-                            });
-                            if (res.success) {
-                              setDevicePushActive(true);
-                              showToast('Notifikasi kehadiran resmi aktif pada ponsel ini!', 'success');
-                            }
-                          } else {
-                            showToast('Izin notifikasi tidak diberikan pada peramban ponsel.', 'info');
-                          }
-                        } catch (_) {}
-                      }}
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black transition-all cursor-pointer ${
-                        devicePushActive
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
-                          : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
-                      }`}
-                    >
-                      <Bell size={11} className={devicePushActive ? 'fill-blue-600' : ''} />
-                      <span>{devicePushActive ? 'Notifikasi Aktif' : 'Notifikasi'}</span>
-                    </button>
-                  </div>
-                </div>
+          {currentScreen === 'beranda' && (() => {
+            const monthlyTotalCount = (monthlyStats.hadir || 0) + (monthlyStats.izin || 0) + (monthlyStats.sakit || 0) + (monthlyStats.alfa || 0);
+            const hadirPct = monthlyTotalCount > 0 ? Math.round(((monthlyStats.hadir || 0) / monthlyTotalCount) * 100) : 0;
+            const izinPct = monthlyTotalCount > 0 ? Math.round(((monthlyStats.izin || 0) / monthlyTotalCount) * 100) : 0;
+            const sakitPct = monthlyTotalCount > 0 ? Math.round(((monthlyStats.sakit || 0) / monthlyTotalCount) * 100) : 0;
+            const alfaPct = monthlyTotalCount > 0 ? Math.round(((monthlyStats.alfa || 0) / monthlyTotalCount) * 100) : 0;
 
-                {/* Circular Student Avatar (Mendukung Foto Unggahan & Default) */}
-                <div 
-                  onClick={() => {
-                    triggerHaptic('tap');
-                    navigateTo('profil');
-                  }}
-                  className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 p-0.5 shadow-md shrink-0 overflow-hidden border-2 border-white cursor-pointer active:scale-95 transition-transform"
-                  title="Lihat Profil Siswa"
-                >
-                  {customStudentAvatar ? (
-                    <img
-                      src={customStudentAvatar}
-                      alt={activeStudent.nama}
-                      className="w-full h-full rounded-full object-cover"
+            const renderRingGraph = (pct: number, trackClass: string, strokeClass: string, textClass: string) => {
+              const radius = 16;
+              const circumference = 100.5;
+              const safePct = Math.min(Math.max(pct, 0), 100);
+              const offset = circumference - (circumference * safePct) / 100;
+              return (
+                <div className="relative w-12 h-12 shrink-0 flex items-center justify-center">
+                  <svg className="w-12 h-12 -rotate-90 transform" viewBox="0 0 40 40">
+                    <circle
+                      cx="20"
+                      cy="20"
+                      r={radius}
+                      className={`${trackClass} fill-none`}
+                      strokeWidth="3.5"
                     />
-                  ) : (
-                    <div className="w-full h-full rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
-                      <svg viewBox="0 0 100 100" className="w-full h-full">
-                        <circle cx="50" cy="50" r="48" fill="#93C5FD" />
-                        {/* Body & Collar */}
-                        <path d="M22 92 C22 72 35 68 50 68 C65 68 78 72 78 92 Z" fill="#1E3A8A" />
-                        <polygon points="50,68 44,82 56,82" fill="#FFFFFF" />
-                        <polygon points="50,74 47,88 53,88" fill="#EF4444" />
-                        {/* Head */}
-                        <circle cx="50" cy="45" r="22" fill="#FDE047" />
-                        {/* Hair */}
-                        <path d="M28 42 C28 26 40 20 50 20 C60 20 72 26 72 42 C72 48 70 52 70 52 C70 52 64 36 50 36 C36 36 30 52 30 52 Z" fill="#451A03" />
-                        {/* Eyes & Smile */}
-                        <circle cx="43" cy="44" r="3" fill="#1E293B" />
-                        <circle cx="57" cy="44" r="3" fill="#1E293B" />
-                        <path d="M46 51 Q50 55 54 51" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" fill="none" />
-                        {/* Blushes */}
-                        <circle cx="39" cy="48" r="2.5" fill="#FCA5A5" />
-                        <circle cx="61" cy="48" r="2.5" fill="#FCA5A5" />
-                      </svg>
-                    </div>
-                  )}
+                    <circle
+                      cx="20"
+                      cy="20"
+                      r={radius}
+                      className={`${strokeClass} fill-none transition-all duration-700 ease-out`}
+                      strokeWidth="3.5"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={offset}
+                    />
+                  </svg>
+                  <span className={`absolute text-[10px] font-black tracking-tight ${textClass}`}>
+                    {safePct}%
+                  </span>
                 </div>
-              </div>
+              );
+            };
 
-              {/* Hero Card: Absensi Hari Ini (Vibrant Blue Card with School Illustration) */}
-              <div className="rounded-3xl bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 text-white p-4 sm:p-5 relative overflow-hidden shadow-lg shadow-blue-500/25">
-                {/* Background decorative circles */}
-                <div className="absolute top-0 right-0 w-36 h-36 bg-white/10 rounded-full blur-xl pointer-events-none" />
+            return (
+              <div className="p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
+                {/* Greeting & Student Circular Avatar (Profil di sebelah KIRI) */}
+                <div className="flex items-center justify-between pt-2 pb-1 gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Circular Student Avatar di sebelah KIRI */}
+                    <div 
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        navigateTo('profil');
+                      }}
+                      className="relative w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-600 p-0.5 shadow-md shadow-blue-500/20 shrink-0 overflow-hidden border-2 border-white cursor-pointer active:scale-95 transition-transform"
+                      title="Lihat Profil Siswa"
+                    >
+                      {customStudentAvatar ? (
+                        <img
+                          src={customStudentAvatar}
+                          alt={activeStudent.nama}
+                          className="w-full h-full rounded-[14px] object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full rounded-[14px] bg-blue-100 flex items-center justify-center overflow-hidden">
+                          <svg viewBox="0 0 100 100" className="w-full h-full">
+                            <circle cx="50" cy="50" r="48" fill="#93C5FD" />
+                            {/* Body & Collar */}
+                            <path d="M22 92 C22 72 35 68 50 68 C65 68 78 72 78 92 Z" fill="#1E3A8A" />
+                            <polygon points="50,68 44,82 56,82" fill="#FFFFFF" />
+                            <polygon points="50,74 47,88 53,88" fill="#EF4444" />
+                            {/* Head */}
+                            <circle cx="50" cy="45" r="22" fill="#FDE047" />
+                            {/* Hair */}
+                            <path d="M28 42 C28 26 40 20 50 20 C60 20 72 26 72 42 C72 48 70 52 70 52 C70 52 64 36 50 36 C36 36 30 52 30 52 Z" fill="#451A03" />
+                            {/* Eyes & Smile */}
+                            <circle cx="43" cy="44" r="3" fill="#1E293B" />
+                            <circle cx="57" cy="44" r="3" fill="#1E293B" />
+                            <path d="M46 51 Q50 55 54 51" stroke="#1E293B" strokeWidth="2" strokeLinecap="round" fill="none" />
+                            {/* Blushes */}
+                            <circle cx="39" cy="48" r="2.5" fill="#FCA5A5" />
+                            <circle cx="61" cy="48" r="2.5" fill="#FCA5A5" />
+                          </svg>
+                        </div>
+                      )}
+                      {/* Active green status indicator */}
+                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full shadow-xs"></span>
+                    </div>
 
-                <div className="relative z-10 flex items-center justify-between gap-2">
-                  <div className="max-w-[62%] space-y-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0">
-                        <Calendar size={18} />
-                      </div>
-                      <div>
-                        <h3 className="text-sm sm:text-base font-black tracking-tight leading-tight">
-                          Presensi Hari Ini
-                        </h3>
-                        <span className="text-[11px] font-bold text-blue-100 block">
-                          {formatIndonesianDate(runningDate)}
+                    {/* Student Info Text (Kanan dari avatar) */}
+                    <div className="min-w-0">
+                      <span className="text-xs text-slate-500 font-semibold block leading-tight">Halo,</span>
+                      <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight truncate">
+                        {activeStudent.nama}
+                      </h1>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs font-bold text-slate-600 truncate">
+                          {formatStudentClass(studentDisplayClassName)}
                         </span>
                       </div>
                     </div>
+                  </div>
 
-                    <p className="text-xs text-blue-50 opacity-95 leading-normal pt-1">
-                      {hasCheckedIn && hasCheckedOut
-                        ? `✓ Sudah lengkap (Masuk: ${todayRecord?.checkInTime} • Pulang: ${todayRecord?.checkOutTime} WIB)`
-                        : hasCheckedIn
-                        ? `✓ Sudah masuk pukul ${todayRecord?.checkInTime} WIB. Siap untuk scan pulang.`
-                        : 'Pastikan kamu sudah melakukan scan masuk di gerbang/kelas.'}
-                    </p>
-
-                    <button
-                      onClick={() => {
-                        triggerHaptic('tap');
-                        if (hasCheckedIn && hasCheckedOut) {
-                          handleOpenDetail(runningDate);
+                  {/* Notification Toggle Button */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (devicePushActive) {
+                        showToast('Notifikasi presensi sudah aktif pada perangkat ini.', 'info');
+                        return;
+                      }
+                      try {
+                        const perm = await Notification.requestPermission();
+                        if (perm === 'granted') {
+                          const res = await subscribeParentDevice({
+                            studentId: activeStudent.id,
+                            schoolId: activeStudent.schoolId || schoolProfile?.id || currentUser?.schoolId,
+                            parentName: detectDeviceName(),
+                          });
+                          if (res.success) {
+                            setDevicePushActive(true);
+                            showToast('Notifikasi kehadiran resmi aktif pada ponsel ini!', 'success');
+                          }
                         } else {
-                          handleOpenScanner(hasCheckedIn ? 'pulang' : 'masuk');
+                          showToast('Izin notifikasi tidak diberikan pada peramban ponsel.', 'info');
                         }
-                      }}
-                      className="mt-2.5 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white text-blue-600 hover:bg-blue-50 active:scale-95 transition-all text-xs font-black shadow-sm cursor-pointer"
-                    >
-                      <span>
+                      } catch (_) {}
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black transition-all cursor-pointer shrink-0 shadow-2xs border ${
+                      devicePushActive
+                        ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                        : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    <Bell size={12} className={devicePushActive ? 'fill-blue-600' : ''} />
+                    <span className="hidden xs:inline">{devicePushActive ? 'Notif Aktif' : 'Notif'}</span>
+                  </button>
+                </div>
+
+                {/* Hero Card: Absensi Hari Ini (Modern 3D Education Banner Menyatu Sempurna) */}
+                <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-blue-600 to-[#1d4ed8] text-white p-4 sm:p-5 relative overflow-hidden shadow-xl shadow-blue-600/25 border border-blue-400/25">
+                  {/* Background decorative soft ambient lights */}
+                  <div className="absolute top-0 right-0 w-44 h-44 bg-sky-400/20 rounded-full blur-2xl pointer-events-none" />
+                  <div className="absolute -bottom-8 -left-8 w-36 h-36 bg-indigo-500/25 rounded-full blur-2xl pointer-events-none" />
+
+                  <div className="relative z-10 flex items-center justify-between gap-3">
+                    <div className="max-w-[60%] sm:max-w-[62%] space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0 border border-white/20 shadow-xs">
+                          <Calendar size={17} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm sm:text-base font-black tracking-tight leading-tight text-white drop-shadow-xs">
+                            Presensi Hari Ini
+                          </h3>
+                          <span className="text-[11px] font-bold text-blue-100 block">
+                            {formatIndonesianDate(runningDate)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-blue-50/95 leading-relaxed pt-0.5 line-clamp-2">
                         {hasCheckedIn && hasCheckedOut
-                          ? 'Lihat Bukti Presensi'
+                          ? `✓ Sudah lengkap (Masuk: ${todayRecord?.checkInTime} • Pulang: ${todayRecord?.checkOutTime} WIB)`
                           : hasCheckedIn
-                          ? 'Scan Pulang'
-                          : 'Scan Sekarang'}
-                      </span>
-                      <ChevronRight size={14} />
-                    </button>
+                          ? `✓ Sudah masuk pukul ${todayRecord?.checkInTime} WIB. Siap untuk scan pulang.`
+                          : 'Pastikan kamu sudah melakukan scan masuk di gerbang/kelas.'}
+                      </p>
+
+                      <div className="pt-1">
+                        <button
+                          onClick={() => {
+                            triggerHaptic('tap');
+                            if (hasCheckedIn && hasCheckedOut) {
+                              handleOpenDetail(runningDate);
+                            } else {
+                              handleOpenScanner(hasCheckedIn ? 'pulang' : 'masuk');
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-blue-700 hover:bg-blue-50 active:scale-95 transition-all text-xs font-black shadow-md shadow-blue-950/20 cursor-pointer"
+                        >
+                          <span>
+                            {hasCheckedIn && hasCheckedOut
+                              ? 'Lihat Bukti Presensi'
+                              : hasCheckedIn
+                              ? 'Scan Pulang'
+                              : 'Scan Sekarang'}
+                          </span>
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Gambar 3D Pendidikan Modern - Menyatu dengan Latar Belakang Spanduk */}
+                    <div className="w-28 h-28 sm:w-32 sm:h-32 shrink-0 relative flex items-center justify-center">
+                      <div className="w-full h-full relative rounded-2xl overflow-hidden shadow-lg shadow-blue-950/25 border border-white/15">
+                        <img
+                          src="/src/assets/images/edu_modern_3d_1791606602840.jpg"
+                          alt="Ilustrasi 3D Presensi Edukasi"
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover transform scale-105"
+                        />
+                        {/* Blend vignette overlay agar menyatu halus dengan gradient biru spanduk */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/40 via-transparent to-transparent pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Action: Pengajuan Izin / Sakit Mandiri */}
+                <div
+                  onClick={() => {
+                    triggerHaptic('tap');
+                    navigateTo('izin-sakit');
+                  }}
+                  className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 hover:border-amber-300 rounded-3xl p-3.5 flex items-center justify-between shadow-2xs transition-all active:scale-98 cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <FileText size={20} />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="text-xs font-black text-slate-900 leading-tight">
+                        Tidak Masuk Sekolah?
+                      </h4>
+                      <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                        Ajukan surat izin atau surat sakit mandiri
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 text-amber-800 font-bold text-xs shrink-0 bg-white/90 px-3 py-1.5 rounded-full border border-amber-200 shadow-2xs">
+                    <span>Ajukan</span>
+                    <ChevronRight size={14} />
+                  </div>
+                </div>
+
+                {/* Ringkasan Presensi Section dengan Grafik Lingkaran pada Setiap Grid */}
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-black text-slate-900 tracking-tight">
+                      Ringkasan Presensi
+                    </h3>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          triggerHaptic('tap');
+                          setCurrentScreen('rekap');
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-black transition-all cursor-pointer border border-blue-200"
+                      >
+                        <BarChart3 size={12} />
+                        <span>Rekap</span>
+                      </button>
+                      <button
+                        onClick={() => setShowMonthPickerModal(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer"
+                      >
+                        <Calendar size={13} className="text-blue-600" />
+                        <span>{currentMonthDisplay}</span>
+                      </button>
+                    </div>
                   </div>
 
-                  {/* School Building Vector Illustration */}
-                  <div className="w-28 h-24 sm:w-32 sm:h-28 shrink-0 relative flex items-center justify-center">
-                    <svg viewBox="0 0 140 120" className="w-full h-full drop-shadow-md">
-                      {/* Sky & ground */}
-                      <ellipse cx="70" cy="115" rx="60" ry="8" fill="#1E3A8A" opacity="0.3" />
-                      {/* Trees */}
-                      <circle cx="25" cy="85" r="14" fill="#34D399" />
-                      <circle cx="115" cy="85" r="14" fill="#34D399" />
-                      <rect x="23" y="90" width="4" height="20" fill="#78350F" />
-                      <rect x="113" y="90" width="4" height="20" fill="#78350F" />
-                      {/* Main Building Base */}
-                      <rect x="36" y="60" width="68" height="50" rx="3" fill="#F8FAFC" />
-                      {/* Roof Orange */}
-                      <polygon points="70,30 28,62 112,62" fill="#FB923C" />
-                      <polygon points="70,32 34,60 106,60" fill="#F97316" />
-                      {/* Tower & Clock */}
-                      <rect x="62" y="16" width="16" height="20" fill="#F8FAFC" />
-                      <polygon points="70,6 58,18 82,18" fill="#EA580C" />
-                      <circle cx="70" cy="24" r="5" fill="#FEF08A" />
-                      {/* Flag Pole & Indonesian Flag */}
-                      <line x1="70" y1="6" x2="70" y2="0" stroke="#E2E8F0" strokeWidth="1.5" />
-                      <rect x="70" y="0" width="10" height="3" fill="#EF4444" />
-                      <rect x="70" y="3" width="10" height="3" fill="#FFFFFF" />
-                      {/* Door */}
-                      <rect x="63" y="85" width="14" height="25" rx="2" fill="#3B82F6" />
-                      {/* Windows */}
-                      <rect x="44" y="70" width="10" height="12" rx="1" fill="#60A5FA" />
-                      <rect x="86" y="70" width="10" height="12" rx="1" fill="#60A5FA" />
-                      <rect x="44" y="90" width="10" height="12" rx="1" fill="#60A5FA" />
-                      <rect x="86" y="90" width="10" height="12" rx="1" fill="#60A5FA" />
-                    </svg>
+                  {/* 4 Stat Cards in 2x2 Grid dengan Grafik Lingkaran Modern */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Hadir */}
+                    <div className="bg-white border border-slate-200/80 hover:border-emerald-300 rounded-3xl p-3.5 shadow-xs hover:shadow-md transition-all flex items-center justify-between gap-2">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                          <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider">Hadir</span>
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-black text-slate-900 leading-none">
+                            {monthlyStats.hadir}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-bold">Hari</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                            {hadirPct}% Rasio
+                          </span>
+                        </div>
+                      </div>
+                      {renderRingGraph(hadirPct, 'stroke-emerald-100', 'stroke-emerald-500', 'text-emerald-700')}
+                    </div>
+
+                    {/* Izin */}
+                    <div className="bg-white border border-slate-200/80 hover:border-amber-300 rounded-3xl p-3.5 shadow-xs hover:shadow-md transition-all flex items-center justify-between gap-2">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                          <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider">Izin</span>
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-black text-slate-900 leading-none">
+                            {monthlyStats.izin}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-bold">Hari</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60">
+                            {izinPct}% Rasio
+                          </span>
+                        </div>
+                      </div>
+                      {renderRingGraph(izinPct, 'stroke-amber-100', 'stroke-amber-500', 'text-amber-800')}
+                    </div>
+
+                    {/* Sakit */}
+                    <div className="bg-white border border-slate-200/80 hover:border-rose-300 rounded-3xl p-3.5 shadow-xs hover:shadow-md transition-all flex items-center justify-between gap-2">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                          <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider">Sakit</span>
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-black text-slate-900 leading-none">
+                            {monthlyStats.sakit}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-bold">Hari</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200/60">
+                            {sakitPct}% Rasio
+                          </span>
+                        </div>
+                      </div>
+                      {renderRingGraph(sakitPct, 'stroke-rose-100', 'stroke-rose-500', 'text-rose-700')}
+                    </div>
+
+                    {/* Alfa */}
+                    <div className="bg-white border border-slate-200/80 hover:border-slate-300 rounded-3xl p-3.5 shadow-xs hover:shadow-md transition-all flex items-center justify-between gap-2">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0"></span>
+                          <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider">Alfa</span>
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-black text-slate-900 leading-none">
+                            {monthlyStats.alfa}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-bold">Hari</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                            {alfaPct}% Rasio
+                          </span>
+                        </div>
+                      </div>
+                      {renderRingGraph(alfaPct, 'stroke-slate-200', 'stroke-slate-400', 'text-slate-600')}
+                    </div>
                   </div>
                 </div>
               </div>
-
-              {/* Quick Action: Pengajuan Izin / Sakit Mandiri */}
-              <div
-                onClick={() => {
-                  triggerHaptic('tap');
-                  navigateTo('izin-sakit');
-                }}
-                className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 hover:border-amber-300 rounded-3xl p-3.5 flex items-center justify-between shadow-2xs transition-all active:scale-98 cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                    <FileText size={20} />
-                  </div>
-                  <div className="text-left">
-                    <h4 className="text-xs font-black text-slate-900 leading-tight">
-                      Tidak Masuk Sekolah?
-                    </h4>
-                    <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
-                      Ajukan surat izin atau surat sakit mandiri
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 text-amber-800 font-bold text-xs shrink-0 bg-white/90 px-3 py-1.5 rounded-full border border-amber-200 shadow-2xs">
-                  <span>Ajukan</span>
-                  <ChevronRight size={14} />
-                </div>
-              </div>
-
-              {/* Ringkasan Presensi Section */}
-              <div className="space-y-3 pt-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black text-slate-900 tracking-tight">
-                    Ringkasan Presensi
-                  </h3>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => {
-                        triggerHaptic('tap');
-                        setCurrentScreen('rekap');
-                      }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-black transition-all cursor-pointer border border-blue-200"
-                    >
-                      <BarChart3 size={12} />
-                      <span>Rekap</span>
-                    </button>
-                    <button
-                      onClick={() => setShowMonthPickerModal(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer"
-                    >
-                      <Calendar size={13} className="text-blue-600" />
-                      <span>{currentMonthDisplay}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4 Stat Cards in 2x2 Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Hadir */}
-                  <div className="bg-white border border-slate-100 rounded-3xl p-3.5 shadow-xs space-y-1.5">
-                    <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black">
-                      <Check size={16} strokeWidth={3} />
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-bold text-slate-500 block">Hadir</span>
-                      <span className="text-2xl font-black text-slate-900 leading-none">
-                        {monthlyStats.hadir}
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-semibold ml-1">Hari</span>
-                    </div>
-                  </div>
-
-                  {/* Izin */}
-                  <div className="bg-white border border-slate-100 rounded-3xl p-3.5 shadow-xs space-y-1.5">
-                    <div className="w-7 h-7 rounded-full bg-amber-400 text-white flex items-center justify-center font-black">
-                      <Clock size={16} strokeWidth={2.5} />
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-bold text-slate-500 block">Izin</span>
-                      <span className="text-2xl font-black text-slate-900 leading-none">
-                        {monthlyStats.izin}
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-semibold ml-1">Hari</span>
-                    </div>
-                  </div>
-
-                  {/* Sakit */}
-                  <div className="bg-white border border-slate-100 rounded-3xl p-3.5 shadow-xs space-y-1.5">
-                    <div className="w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center font-black">
-                      <X size={16} strokeWidth={3} />
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-bold text-slate-500 block">Sakit</span>
-                      <span className="text-2xl font-black text-slate-900 leading-none">
-                        {monthlyStats.sakit}
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-semibold ml-1">Hari</span>
-                    </div>
-                  </div>
-
-                  {/* Alfa */}
-                  <div className="bg-white border border-slate-100 rounded-3xl p-3.5 shadow-xs space-y-1.5">
-                    <div className="w-7 h-7 rounded-full bg-slate-400 text-white flex items-center justify-center font-black">
-                      <X size={16} strokeWidth={3} />
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-bold text-slate-500 block">Alfa</span>
-                      <span className="text-2xl font-black text-slate-900 leading-none">
-                        {monthlyStats.alfa}
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-semibold ml-1">Hari</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ========================================================================= */}
           {/* SCREEN 2: SCAN ABSENSI (CAMERA SCANNER VIEW) */}
