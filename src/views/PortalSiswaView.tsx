@@ -1701,25 +1701,13 @@ export const PortalSiswaView: React.FC = () => {
                         Basis {effectiveDaysInMonth} Hari Belajar Efektif (100%)
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => {
-                          triggerHaptic('tap');
-                          setCurrentScreen('rekap');
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-black transition-all cursor-pointer border border-blue-200"
-                      >
-                        <BarChart3 size={12} />
-                        <span>Rekap</span>
-                      </button>
-                      <button
-                        onClick={() => setShowMonthPickerModal(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 transition-all cursor-pointer"
-                      >
-                        <Calendar size={13} className="text-blue-600" />
-                        <span>{currentMonthDisplay}</span>
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setShowMonthPickerModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/90 text-xs font-bold text-slate-700 shadow-2xs hover:border-slate-300 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Calendar size={13} className="text-blue-600" />
+                      <span>{currentMonthDisplay}</span>
+                    </button>
                   </div>
 
                   {/* 4 Stat Cards in 2x2 Grid dengan Grafik Lingkaran Berbasis Hari Belajar Efektif */}
@@ -2376,154 +2364,345 @@ export const PortalSiswaView: React.FC = () => {
             <div className="p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
               {/* Header: Title + History Icon */}
               <div className="flex items-center justify-between pt-1">
-                <h2 className="text-base font-black text-slate-900 tracking-tight">
-                  Presensi
-                </h2>
+                <div>
+                  <h2 className="text-base font-black text-slate-900 tracking-tight">
+                    Presensi Siswa
+                  </h2>
+                  <p className="text-xs font-semibold text-slate-500">
+                    Catat kehadiran harian & permohonan izin
+                  </p>
+                </div>
                 <button
                   onClick={() => navigateTo('riwayat')}
-                  className="w-9 h-9 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-700 transition-all active:scale-95 cursor-pointer"
+                  className="px-3 py-1.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/90 flex items-center gap-1.5 text-slate-700 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
                   title="Lihat Riwayat Presensi"
                 >
-                  <RotateCcw size={17} />
+                  <RotateCcw size={14} className="text-blue-600" />
+                  <span>Riwayat</span>
                 </button>
               </div>
 
-              {/* Action Card 1: Scan Masuk (Green Theme) */}
+              {/* Action Card 1: Scan Masuk (Emerald Theme with Native Vector SVG) */}
               <div
                 onClick={() => handleOpenScanner('masuk')}
-                className={`border rounded-3xl p-4 flex items-center justify-between transition-all shadow-xs ${
+                className={`border rounded-3xl p-4 flex items-center justify-between transition-all shadow-xs relative overflow-hidden ${
                   hasCheckedIn
-                    ? 'bg-emerald-50/60 border-emerald-300 opacity-90 cursor-default'
-                    : 'bg-emerald-50 hover:bg-emerald-100/70 border-emerald-200 cursor-pointer active:scale-98 group'
+                    ? 'bg-gradient-to-r from-emerald-50 via-emerald-50/80 to-teal-50/60 border-emerald-300 opacity-95 cursor-default'
+                    : 'bg-gradient-to-r from-emerald-50/90 via-teal-50/60 to-white hover:border-emerald-400 border-emerald-200/90 cursor-pointer active:scale-98 group hover:shadow-md'
                 }`}
               >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
-                    {hasCheckedIn ? <CheckCircle2 size={24} /> : <QrCode size={24} />}
+                <div className="flex items-center gap-3.5 relative z-10">
+                  {/* Native Modern SVG Vector for Scan Masuk */}
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-0.5 shadow-md shadow-emerald-500/25 shrink-0 flex items-center justify-center overflow-hidden">
+                    <svg viewBox="0 0 56 56" className="w-full h-full" fill="none">
+                      <rect width="56" height="56" rx="14" fill="url(#scanMasukGrad)" />
+                      <defs>
+                        <linearGradient id="scanMasukGrad" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#10B981" />
+                          <stop offset="100%" stopColor="#0D9488" />
+                        </linearGradient>
+                      </defs>
+                      {/* Soft ambient inner circle */}
+                      <circle cx="28" cy="28" r="22" stroke="#A7F3D0" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="3 3" />
+                      {/* QR Scanner Frame Corners */}
+                      <path d="M16 22 V18 A2 2 0 0 1 18 16 H22" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+                      <path d="M40 22 V18 A2 2 0 0 0 38 16 H34" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+                      <path d="M16 34 V38 A2 2 0 0 0 18 40 H22" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+                      <path d="M40 34 V38 A2 2 0 0 1 38 40 H34" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+                      {/* Morning Sun / Entry Arrow symbol */}
+                      <circle cx="28" cy="28" r="8" fill="#FFFFFF" fillOpacity="0.2" />
+                      <path d="M28 21 V33" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" />
+                      <path d="M23 28 L28 33 L33 28" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                      {/* Tiny Check / Indicator */}
+                      <circle cx="39" cy="17" r="3" fill="#34D399" />
+                    </svg>
                   </div>
+
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-black text-emerald-950 leading-tight">
                         Scan Masuk
                       </h3>
-                      {hasCheckedIn && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                      {hasCheckedIn ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full shadow-2xs">
                           <Lock size={10} />
                           <span>Tercatat</span>
                         </span>
+                      ) : (
+                        <span className="inline-flex items-center text-[10px] font-extrabold bg-emerald-100/90 text-emerald-800 px-2 py-0.5 rounded-full">
+                          Pagi
+                        </span>
                       )}
                     </div>
-                    <p className="text-xs font-medium text-emerald-700 mt-0.5">
+                    <p className="text-xs font-semibold text-emerald-800/90 mt-0.5">
                       {hasCheckedIn
-                        ? `Sudah masuk pukul ${todayRecord?.checkInTime} WIB (Terkunci)`
-                        : 'Datang ke sekolah'}
+                        ? `Sudah presensi masuk pukul ${todayRecord?.checkInTime} WIB (Terkunci)`
+                        : 'Pindai barcode rombel saat tiba di sekolah'}
                     </p>
                   </div>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-800">
+
+                <div className="w-8 h-8 rounded-full bg-emerald-100/90 flex items-center justify-center text-emerald-800 relative z-10 shrink-0">
                   {hasCheckedIn ? <Lock size={15} /> : <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />}
                 </div>
               </div>
 
-              {/* Action Card 2: Scan Pulang (Blue Theme) */}
+              {/* Action Card 2: Scan Pulang (Blue Theme with Native Vector SVG) */}
               <div
                 onClick={() => handleOpenScanner('pulang')}
-                className={`border rounded-3xl p-4 flex items-center justify-between transition-all shadow-xs ${
+                className={`border rounded-3xl p-4 flex items-center justify-between transition-all shadow-xs relative overflow-hidden ${
                   hasCheckedOut
-                    ? 'bg-blue-50/60 border-blue-300 opacity-90 cursor-default'
-                    : 'bg-blue-50 hover:bg-blue-100/70 border-blue-200 cursor-pointer active:scale-98 group'
+                    ? 'bg-gradient-to-r from-blue-50 via-blue-50/80 to-indigo-50/60 border-blue-300 opacity-95 cursor-default'
+                    : 'bg-gradient-to-r from-blue-50/90 via-indigo-50/60 to-white hover:border-blue-400 border-blue-200/90 cursor-pointer active:scale-98 group hover:shadow-md'
                 }`}
               >
-                <div className="flex items-center gap-3.5">
-                  <div className={`w-12 h-12 rounded-2xl text-white flex items-center justify-center shadow-md shrink-0 ${
-                    hasCheckedOut ? 'bg-blue-600 shadow-blue-500/20' : 'bg-blue-600 shadow-blue-500/20'
-                  }`}>
-                    {hasCheckedOut ? <CheckCircle2 size={24} /> : <QrCode size={24} />}
+                <div className="flex items-center gap-3.5 relative z-10">
+                  {/* Native Modern SVG Vector for Scan Pulang */}
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 p-0.5 shadow-md shadow-blue-500/25 shrink-0 flex items-center justify-center overflow-hidden">
+                    <svg viewBox="0 0 56 56" className="w-full h-full" fill="none">
+                      <rect width="56" height="56" rx="14" fill="url(#scanPulangGrad)" />
+                      <defs>
+                        <linearGradient id="scanPulangGrad" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#2563EB" />
+                          <stop offset="100%" stopColor="#4F46E5" />
+                        </linearGradient>
+                      </defs>
+                      {/* Soft ambient inner ring */}
+                      <circle cx="28" cy="28" r="22" stroke="#BFDBFE" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="3 3" />
+                      {/* Scanner Frame Corners */}
+                      <path d="M16 22 V18 A2 2 0 0 1 18 16 H22" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+                      <path d="M40 22 V18 A2 2 0 0 0 38 16 H34" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+                      <path d="M16 34 V38 A2 2 0 0 0 18 40 H22" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+                      <path d="M40 34 V38 A2 2 0 0 1 38 40 H34" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+                      {/* Departure Symbol (Door / Outward arrow) */}
+                      <path d="M23 35 H33" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.6" />
+                      <path d="M28 33 V21" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" />
+                      <path d="M23 26 L28 21 L33 26" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                      {/* Star / Crescent accent */}
+                      <circle cx="39" cy="17" r="3" fill="#93C5FD" />
+                    </svg>
                   </div>
+
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-black text-blue-950 leading-tight">
                         Scan Pulang
                       </h3>
-                      {hasCheckedOut && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                      {hasCheckedOut ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black bg-blue-600 text-white px-2 py-0.5 rounded-full shadow-2xs">
                           <Lock size={10} />
                           <span>Tercatat</span>
                         </span>
+                      ) : (
+                        <span className="inline-flex items-center text-[10px] font-extrabold bg-blue-100/90 text-blue-800 px-2 py-0.5 rounded-full">
+                          Selesai KBM
+                        </span>
                       )}
                     </div>
-                    <p className="text-xs font-medium text-blue-700 mt-0.5">
+                    <p className="text-xs font-semibold text-blue-800/90 mt-0.5">
                       {hasCheckedOut
-                        ? `Sudah pulang pukul ${todayRecord?.checkOutTime} WIB (Terkunci)`
-                        : 'Pulang dari sekolah'}
+                        ? `Sudah presensi pulang pukul ${todayRecord?.checkOutTime} WIB (Terkunci)`
+                        : 'Pindai barcode kepulangan sebelum meninggalkan sekolah'}
                     </p>
                   </div>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-800">
+
+                <div className="w-8 h-8 rounded-full bg-blue-100/90 flex items-center justify-center text-blue-800 relative z-10 shrink-0">
                   {hasCheckedOut ? <Lock size={15} /> : <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />}
                 </div>
               </div>
 
-              {/* Action Card 3: Ajukan Izin / Sakit Mandiri (Amber Theme) */}
+              {/* Action Card 3: Ajukan Izin / Sakit Mandiri (Amber Theme with Native Vector SVG) */}
               <div
                 onClick={() => {
                   triggerHaptic('tap');
                   navigateTo('izin-sakit');
                 }}
-                className="bg-amber-50 hover:bg-amber-100/70 border border-amber-200 rounded-3xl p-4 flex items-center justify-between cursor-pointer transition-all shadow-xs active:scale-98 group"
+                className="bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-white hover:border-amber-400 border border-amber-200/90 rounded-3xl p-4 flex items-center justify-between cursor-pointer transition-all shadow-xs active:scale-98 group hover:shadow-md"
               >
                 <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
-                    <FileText size={24} />
+                  {/* Native Modern SVG Vector for Pengajuan Izin/Sakit */}
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 p-0.5 shadow-md shadow-amber-500/25 shrink-0 flex items-center justify-center overflow-hidden">
+                    <svg viewBox="0 0 56 56" className="w-full h-full" fill="none">
+                      <rect width="56" height="56" rx="14" fill="url(#izinGrad)" />
+                      <defs>
+                        <linearGradient id="izinGrad" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#F59E0B" />
+                          <stop offset="100%" stopColor="#D97706" />
+                        </linearGradient>
+                      </defs>
+                      {/* Document Outline */}
+                      <rect x="18" y="14" width="20" height="28" rx="3.5" fill="#FFFFFF" fillOpacity="0.25" stroke="#FFFFFF" strokeWidth="2" />
+                      {/* Fold corner effect */}
+                      <path d="M30 14 V20 H38" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      {/* Medical Cross / Pen symbol */}
+                      <rect x="23" y="27" width="10" height="2.5" rx="1.25" fill="#FFFFFF" />
+                      <rect x="26.75" y="23.25" width="2.5" height="10" rx="1.25" fill="#FFFFFF" />
+                      {/* Note Lines */}
+                      <line x1="22" y1="38" x2="34" y2="38" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.8" />
+                    </svg>
                   </div>
+
                   <div>
-                    <h3 className="text-sm font-black text-amber-950 leading-tight">
-                      Pengajuan Izin / Sakit
-                    </h3>
-                    <p className="text-xs font-medium text-amber-800 mt-0.5">
-                      Kirim surat dokter atau permohonan izin
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-black text-amber-950 leading-tight">
+                        Pengajuan Izin / Sakit
+                      </h3>
+                      <span className="inline-flex items-center text-[10px] font-extrabold bg-amber-100/90 text-amber-800 px-2 py-0.5 rounded-full">
+                        Formulir
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-amber-800/90 mt-0.5">
+                      Unggah surat keterangan dokter atau permohonan wali
                     </p>
                   </div>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 group-hover:translate-x-1 transition-transform">
+
+                <div className="w-8 h-8 rounded-full bg-amber-100/90 flex items-center justify-center text-amber-800 group-hover:translate-x-1 transition-transform shrink-0">
                   <ChevronRight size={18} />
                 </div>
               </div>
 
-              {/* Informasi Card */}
-              <div className="bg-slate-50 border border-slate-200/80 rounded-3xl p-4 space-y-2">
+              {/* Informasi Prosedur Presensi Card */}
+              <div className="bg-slate-50/80 border border-slate-200/80 rounded-3xl p-4 space-y-2">
                 <div className="flex items-center gap-2 text-blue-600 font-black text-xs">
                   <Info size={16} />
-                  <span>Informasi</span>
+                  <span>Petunjuk Presensi Mandiri</span>
                 </div>
-                <ul className="text-xs text-slate-600 space-y-1.5 pl-1 leading-relaxed">
-                  <li>• Scan masuk dilakukan saat tiba di sekolah.</li>
-                  <li>• Scan pulang dilakukan saat selesai belajar.</li>
-                  <li>• Pastikan QR code tersedia di lokasi sekolah.</li>
+                <ul className="text-xs text-slate-600 space-y-1.5 pl-1 leading-relaxed font-medium">
+                  <li>• <strong>Scan Masuk</strong> dilakukan saat siswa tiba di area sekolah/kelas.</li>
+                  <li>• <strong>Scan Pulang</strong> dibuka saat jam kepulangan resmi berakhir.</li>
+                  <li>• Pengajuan <strong>Izin / Sakit</strong> diverifikasi langsung oleh wali kelas.</li>
                 </ul>
               </div>
 
-              {/* Mascot Footer Illustration */}
-              <div className="pt-2 flex flex-col items-center justify-center text-center space-y-2">
-                <div className="bg-white border border-blue-100 px-4 py-1.5 rounded-full shadow-2xs inline-flex items-center gap-1.5 text-[11px] font-black text-blue-700">
-                  <span>Disiplin Membentuk Masa Depan</span>
-                  <Smile size={14} className="text-blue-600" />
-                </div>
+              {/* Modern Native Vector School Architecture Artwork (Blends Seamlessly with Theme) */}
+              <div className="pt-1 pb-2 flex flex-col items-center justify-center">
+                <div className="w-full max-w-sm rounded-3xl p-4 bg-gradient-to-b from-blue-50/50 via-slate-50/80 to-blue-50/30 border border-blue-100/70 shadow-2xs">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                      {schoolProfile.namaSekolah || 'SD Cideng 07'}
+                    </span>
+                    <span className="text-[10px] font-extrabold text-blue-600 bg-blue-100/80 px-2 py-0.5 rounded-full">
+                      Pusat Edukasi Digital
+                    </span>
+                  </div>
 
-                <div className="w-48 h-24 relative flex items-center justify-center">
-                  <svg viewBox="0 0 160 80" className="w-full h-full">
-                    <ellipse cx="80" cy="74" rx="70" ry="6" fill="#E2E8F0" />
-                    <circle cx="30" cy="55" r="10" fill="#34D399" />
-                    <circle cx="130" cy="55" r="10" fill="#34D399" />
-                    {/* Mini School */}
-                    <rect x="50" y="40" width="60" height="34" rx="2" fill="#FFFFFF" stroke="#CBD5E1" strokeWidth="1" />
-                    <polygon points="80,18 45,42 115,42" fill="#FB923C" />
-                    <rect x="74" y="8" width="12" height="12" fill="#FFFFFF" />
-                    <polygon points="80,2 70,9 90,9" fill="#EA580C" />
-                    <circle cx="80" cy="14" r="3" fill="#FDE047" />
-                    {/* Door */}
-                    <rect x="73" y="56" width="14" height="18" rx="1" fill="#3B82F6" />
-                  </svg>
+                  {/* Native Modern Vector SVG Architecture Illustration */}
+                  <div className="w-full h-32 relative">
+                    <svg viewBox="0 0 360 140" className="w-full h-full drop-shadow-xs" fill="none">
+                      <defs>
+                        <linearGradient id="schoolSky" x1="180" y1="0" x2="180" y2="140" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#EFF6FF" stopOpacity="0.8" />
+                          <stop offset="100%" stopColor="#DBEAFE" stopOpacity="0.4" />
+                        </linearGradient>
+                        <linearGradient id="bldgRoof" x1="180" y1="20" x2="180" y2="45" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#1E40AF" />
+                          <stop offset="100%" stopColor="#1D4ED8" />
+                        </linearGradient>
+                        <linearGradient id="bldgFacade" x1="180" y1="45" x2="180" y2="120" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#FFFFFF" />
+                          <stop offset="100%" stopColor="#F8FAFC" />
+                        </linearGradient>
+                        <linearGradient id="groundGrad" x1="0" y1="120" x2="360" y2="120" gradientUnits="userSpaceOnUse">
+                          <stop offset="0%" stopColor="#E2E8F0" stopOpacity="0.4" />
+                          <stop offset="50%" stopColor="#CBD5E1" />
+                          <stop offset="100%" stopColor="#E2E8F0" stopOpacity="0.4" />
+                        </linearGradient>
+                      </defs>
+
+                      {/* Backdrop clouds / soft waves */}
+                      <path d="M20 30 Q35 20 50 30 T80 30" stroke="#BFDBFE" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.5" />
+                      <path d="M280 25 Q295 15 310 25 T340 25" stroke="#BFDBFE" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.5" />
+
+                      {/* Ground line */}
+                      <line x1="20" y1="125" x2="340" y2="125" stroke="url(#groundGrad)" strokeWidth="3" strokeLinecap="round" />
+
+                      {/* Side Trees (Modern geometric minimalist) */}
+                      {/* Left Tree */}
+                      <rect x="52" y="105" width="4" height="20" rx="2" fill="#94A3B8" />
+                      <circle cx="54" cy="95" r="16" fill="#10B981" fillOpacity="0.85" />
+                      <circle cx="50" cy="90" r="12" fill="#34D399" />
+                      {/* Left Small Tree */}
+                      <rect x="30" y="112" width="3" height="13" rx="1.5" fill="#94A3B8" />
+                      <circle cx="31.5" cy="106" r="10" fill="#059669" fillOpacity="0.8" />
+
+                      {/* Right Tree */}
+                      <rect x="304" y="105" width="4" height="20" rx="2" fill="#94A3B8" />
+                      <circle cx="306" cy="95" r="16" fill="#10B981" fillOpacity="0.85" />
+                      <circle cx="310" cy="90" r="12" fill="#34D399" />
+                      {/* Right Small Tree */}
+                      <rect x="326" y="112" width="3" height="13" rx="1.5" fill="#94A3B8" />
+                      <circle cx="327.5" cy="106" r="10" fill="#059669" fillOpacity="0.8" />
+
+                      {/* School Left Wing */}
+                      <rect x="80" y="60" width="60" height="65" rx="3" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="1.2" />
+                      <polygon points="76,60 144,60 140,50 80,50" fill="#3B82F6" />
+                      {/* Left Wing Windows */}
+                      <rect x="90" y="68" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
+                      <rect x="114" y="68" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
+                      <rect x="90" y="88" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
+                      <rect x="114" y="88" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
+
+                      {/* School Right Wing */}
+                      <rect x="220" y="60" width="60" height="65" rx="3" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="1.2" />
+                      <polygon points="216,60 284,60 280,50 220,50" fill="#3B82F6" />
+                      {/* Right Wing Windows */}
+                      <rect x="230" y="68" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
+                      <rect x="254" y="68" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
+                      <rect x="230" y="88" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
+                      <rect x="254" y="88" width="16" height="12" rx="2" fill="#93C5FD" fillOpacity="0.75" stroke="#60A5FA" strokeWidth="1" />
+
+                      {/* School Main Center Building (Elevated) */}
+                      <rect x="135" y="44" width="90" height="81" rx="4" fill="url(#bldgFacade)" stroke="#94A3B8" strokeWidth="1.2" />
+                      
+                      {/* Center Roof Gable & Pediment */}
+                      <polygon points="130,44 180,18 230,44" fill="url(#bldgRoof)" />
+                      {/* Pediment Inner Inset */}
+                      <polygon points="140,42 180,22 220,42" fill="#FFFFFF" fillOpacity="0.15" />
+
+                      {/* Clock Tower Center */}
+                      <circle cx="180" cy="33" r="6.5" fill="#FFFFFF" stroke="#1E3A8A" strokeWidth="1" />
+                      <line x1="180" y1="33" x2="180" y2="29.5" stroke="#1E3A8A" strokeWidth="1" strokeLinecap="round" />
+                      <line x1="180" y1="33" x2="182.5" y2="33" stroke="#1E3A8A" strokeWidth="1" strokeLinecap="round" />
+
+                      {/* Center Pillars */}
+                      <rect x="145" y="48" width="6" height="50" rx="1" fill="#E2E8F0" />
+                      <rect x="165" y="48" width="6" height="50" rx="1" fill="#E2E8F0" />
+                      <rect x="189" y="48" width="6" height="50" rx="1" fill="#E2E8F0" />
+                      <rect x="209" y="48" width="6" height="50" rx="1" fill="#E2E8F0" />
+
+                      {/* Upper Center Windows */}
+                      <rect x="156" y="56" width="16" height="18" rx="2" fill="#60A5FA" stroke="#2563EB" strokeWidth="1" />
+                      <line x1="164" y1="56" x2="164" y2="74" stroke="#FFFFFF" strokeWidth="0.8" />
+                      <line x1="156" y1="65" x2="172" y2="65" stroke="#FFFFFF" strokeWidth="0.8" />
+
+                      <rect x="188" y="56" width="16" height="18" rx="2" fill="#60A5FA" stroke="#2563EB" strokeWidth="1" />
+                      <line x1="196" y1="56" x2="196" y2="74" stroke="#FFFFFF" strokeWidth="0.8" />
+                      <line x1="188" y1="65" x2="204" y2="65" stroke="#FFFFFF" strokeWidth="0.8" />
+
+                      {/* Main Grand Portal Entrance */}
+                      <path d="M168 125 V102 A12 12 0 0 1 192 102 V125 Z" fill="#1D4ED8" stroke="#1E40af" strokeWidth="1" />
+                      <rect x="170" y="105" width="9" height="20" fill="#3B82F6" />
+                      <rect x="181" y="105" width="9" height="20" fill="#2563EB" />
+                      <circle cx="178" cy="115" r="1" fill="#FCD34D" />
+                      <circle cx="182" cy="115" r="1" fill="#FCD34D" />
+
+                      {/* Steps to entrance */}
+                      <rect x="160" y="121" width="40" height="2" rx="0.5" fill="#CBD5E1" />
+                      <rect x="156" y="123" width="48" height="2" rx="0.5" fill="#94A3B8" />
+
+                      {/* School Flagpole */}
+                      <line x1="180" y1="18" x2="180" y2="4" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" />
+                      {/* Indonesian Flag (Merah Putih) */}
+                      <rect x="180" y="4" width="12" height="4" fill="#EF4444" />
+                      <rect x="180" y="8" width="12" height="4" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="0.5" />
+                    </svg>
+                  </div>
+                  
+                  <p className="text-[11px] font-semibold text-slate-500 text-center mt-1">
+                    {schoolProfile.alamat || 'Sistem Absensi Digital Sekolah Modern'}
+                  </p>
                 </div>
               </div>
             </div>
