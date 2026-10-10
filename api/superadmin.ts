@@ -2261,12 +2261,16 @@ export default async function handler(req: any, res: any, env?: any) {
       };
 
       const rawNotif = integrations.notification_config || {};
+      const activePlatformLogo = integrations.platform_config?.app_logo_url || '/lk.png';
+      const resolvedBadge = (rawNotif.badge_icon_url && rawNotif.badge_icon_url !== '/pwa-192.png')
+        ? rawNotif.badge_icon_url
+        : activePlatformLogo;
       const defaultNotificationConfig = {
         is_enabled: rawNotif.is_enabled !== undefined ? Boolean(rawNotif.is_enabled) : true,
         show_large_icon: rawNotif.show_large_icon !== undefined ? Boolean(rawNotif.show_large_icon) : false,
         large_icon_url: rawNotif.large_icon_url || '',
-        badge_icon_url: rawNotif.badge_icon_url || '/pwa-192.png',
-        app_title_prefix: rawNotif.app_title_prefix || 'Kawacanaan Presensi',
+        badge_icon_url: resolvedBadge,
+        app_title_prefix: rawNotif.app_title_prefix || defaultPlatformConfig.app_name || 'Kawacanaan Presensi',
         notify_on_present: rawNotif.notify_on_present !== undefined ? Boolean(rawNotif.notify_on_present) : true,
         notify_on_late: rawNotif.notify_on_late !== undefined ? Boolean(rawNotif.notify_on_late) : true,
         notify_on_checkout: rawNotif.notify_on_checkout !== undefined ? Boolean(rawNotif.notify_on_checkout) : true,

@@ -196,6 +196,7 @@ export default async function handler(req: any, res: any, env?: any) {
 
 export async function getNotificationConfig(env?: any) {
   const db = getAdminClient(env);
+  let effectivePlatformLogo = '/lk.png';
   if (db) {
     try {
       const { data: st } = await db
@@ -203,8 +204,17 @@ export async function getNotificationConfig(env?: any) {
         .select('integrations')
         .eq('id', 1)
         .maybeSingle();
+      const pLogo = st?.integrations?.platform_config?.app_logo_url;
+      if (pLogo && typeof pLogo === 'string' && pLogo.trim()) {
+        effectivePlatformLogo = pLogo.trim();
+      }
       if (st?.integrations?.notification_config) {
-        return st.integrations.notification_config;
+        const nc = st.integrations.notification_config;
+        const rawBadge = nc.badge_icon_url;
+        return {
+          ...nc,
+          badge_icon_url: (rawBadge && rawBadge !== '/pwa-192.png') ? rawBadge : effectivePlatformLogo,
+        };
       }
     } catch (_) {}
   }
@@ -212,7 +222,7 @@ export async function getNotificationConfig(env?: any) {
     is_enabled: true,
     show_large_icon: false, // Default: Logo kanan dihapus sesuai permintaan pengguna
     large_icon_url: '',
-    badge_icon_url: '/pwa-192.png', // Logo sistem Kawacanaan terbaru
+    badge_icon_url: effectivePlatformLogo, // Logo sistem Kawacanaan resmi yang terhubung dengan Supabase
     app_title_prefix: 'Kawacanaan Presensi',
     notify_on_present: true,
     notify_on_late: true,
@@ -324,8 +334,8 @@ export async function sendAttendancePushToStudent(
   }
 
   // Logo kanan: jika show_large_icon = false, kosongkan icon agar logo di sebelah kanan dihapus total
-  const iconUrl = notifConfig.show_large_icon ? (notifConfig.large_icon_url || '/pwa-192.png') : '';
-  const badgeUrl = notifConfig.badge_icon_url || '/pwa-192.png';
+  const iconUrl = notifConfig.show_large_icon ? (notifConfig.large_icon_url || notifConfig.badge_icon_url || '/lk.png') : '';
+  const badgeUrl = (notifConfig.badge_icon_url && notifConfig.badge_icon_url !== '/pwa-192.png') ? notifConfig.badge_icon_url : '/lk.png';
 
   const payload = JSON.stringify({
     title,
@@ -467,8 +477,8 @@ export async function sendLeaveDecisionPushToStudent(
   }
 
   // Logo kanan: jika show_large_icon = false, kosongkan icon agar logo di sebelah kanan dihapus total
-  const iconUrl = notifConfig.show_large_icon ? (notifConfig.large_icon_url || '/pwa-192.png') : '';
-  const badgeUrl = notifConfig.badge_icon_url || '/pwa-192.png';
+  const iconUrl = notifConfig.show_large_icon ? (notifConfig.large_icon_url || notifConfig.badge_icon_url || '/lk.png') : '';
+  const badgeUrl = (notifConfig.badge_icon_url && notifConfig.badge_icon_url !== '/pwa-192.png') ? notifConfig.badge_icon_url : '/lk.png';
 
   const payload = JSON.stringify({
     title,

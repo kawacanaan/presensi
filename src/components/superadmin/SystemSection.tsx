@@ -221,6 +221,7 @@ export const SystemSection: React.FC<SystemSectionProps> = ({
                 call={call}
                 showToast={showToast}
                 initialConfig={settingsData.notifikasi}
+                platformLogo={settingsData.platform?.app_logo_url}
                 onSaved={(updated) =>
                   setSettingsData((prev) => ({ ...prev, notifikasi: updated }))
                 }

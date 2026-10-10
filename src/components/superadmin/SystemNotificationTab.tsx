@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   HelpCircle,
 } from 'lucide-react';
+import { usePlatformBrand, DEFAULT_PLATFORM_LOGO } from '../../utils/platformBranding';
 
 export interface NotificationSystemConfig {
   is_enabled: boolean;
@@ -41,6 +42,7 @@ interface Props {
   call: (action: string, payload?: any) => Promise<any>;
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   initialConfig?: Partial<NotificationSystemConfig>;
+  platformLogo?: string;
   onSaved?: (newConfig: NotificationSystemConfig) => void;
 }
 
@@ -48,7 +50,7 @@ const DEFAULT_CONFIG: NotificationSystemConfig = {
   is_enabled: true,
   show_large_icon: false, // Default: Logo kanan dihapus sesuai instruksi
   large_icon_url: '',
-  badge_icon_url: '/pwa-192.png', // Logo sistem Kawacanaan terbaru untuk status bar kiri
+  badge_icon_url: DEFAULT_PLATFORM_LOGO || '/lk.png', // Logo sistem Kawacanaan resmi yang terhubung dengan Supabase
   app_title_prefix: 'Kawacanaan Presensi',
   notify_on_present: true,
   notify_on_late: true,
@@ -67,11 +69,27 @@ export const SystemNotificationTab: React.FC<Props> = ({
   call,
   showToast,
   initialConfig,
+  platformLogo,
   onSaved,
 }) => {
+  const { logoUrl: brandLogoUrl } = usePlatformBrand();
+  // Logo Kawacanaan yang terhubung dengan Supabase saat ini
+  const effectiveSupabaseLogo = (platformLogo && platformLogo.trim())
+    || (brandLogoUrl && brandLogoUrl.trim())
+    || DEFAULT_PLATFORM_LOGO
+    || '/lk.png';
+
+  const resolveBadgeIcon = (raw?: string) => {
+    if (!raw || raw === '/pwa-192.png') {
+      return effectiveSupabaseLogo;
+    }
+    return raw;
+  };
+
   const [form, setForm] = useState<NotificationSystemConfig>(() => ({
     ...DEFAULT_CONFIG,
     ...(initialConfig || {}),
+    badge_icon_url: resolveBadgeIcon(initialConfig?.badge_icon_url),
   }));
 
   const [saving, setSaving] = useState(false);
@@ -83,9 +101,17 @@ export const SystemNotificationTab: React.FC<Props> = ({
       setForm((prev) => ({
         ...prev,
         ...initialConfig,
+        badge_icon_url: resolveBadgeIcon(initialConfig.badge_icon_url || prev.badge_icon_url),
       }));
+    } else if (effectiveSupabaseLogo) {
+      setForm((prev) => {
+        if (!prev.badge_icon_url || prev.badge_icon_url === '/pwa-192.png') {
+          return { ...prev, badge_icon_url: effectiveSupabaseLogo };
+        }
+        return prev;
+      });
     }
-  }, [initialConfig]);
+  }, [initialConfig, effectiveSupabaseLogo]);
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -127,7 +153,7 @@ export const SystemNotificationTab: React.FC<Props> = ({
       }
 
       // Bangun options sesuai pengaturan aktif
-      const badgeIcon = form.badge_icon_url || '/pwa-192.png';
+      const badgeIcon = form.badge_icon_url || effectiveSupabaseLogo;
       const notificationOptions: NotificationOptions = {
         body: form.show_large_icon
           ? 'Contoh notifikasi: Logo sebelah kanan aktif.'
@@ -171,7 +197,10 @@ export const SystemNotificationTab: React.FC<Props> = ({
 
   const handleReset = () => {
     if (confirm('Kembalikan seluruh konfigurasi notifikasi ke standar sistem?')) {
-      setForm(DEFAULT_CONFIG);
+      setForm({
+        ...DEFAULT_CONFIG,
+        badge_icon_url: effectiveSupabaseLogo,
+      });
       showToast('Konfigurasi dikembalikan ke standar. Klik Simpan untuk menerapkan.', 'info');
     }
   };
@@ -287,7 +316,7 @@ export const SystemNotificationTab: React.FC<Props> = ({
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, large_icon_url: e.target.value }))
                     }
-                    placeholder="/pwa-192.png"
+                    placeholder={effectiveSupabaseLogo}
                     className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white"
                   />
                 </div>
@@ -297,19 +326,26 @@ export const SystemNotificationTab: React.FC<Props> = ({
             {/* Logo Status Bar Kiri (Badge Icon) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-800">
-                  Logo Status Bar Sebelah Kiri (Badge Icon Android)
-                </label>
-                <span className="text-[10px] text-slate-400">Direkomendasikan: /pwa-192.png</span>
+                <div className="flex items-center gap-2">
+                  <label className="block text-xs font-bold text-slate-800">
+                    Logo Status Bar Sebelah Kiri (Badge Icon Android)
+                  </label>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-700 border border-blue-200">
+                    LOGO SUPABASE
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-medium truncate max-w-[200px]" title={effectiveSupabaseLogo}>
+                  Default: Logo Kawacanaan Supabase
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-900 flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-xs">
                   <img
-                    src={form.badge_icon_url || '/pwa-192.png'}
+                    src={form.badge_icon_url || effectiveSupabaseLogo}
                     alt="Badge Preview"
                     className="w-full h-full object-contain"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/pwa-192.png';
+                      (e.target as HTMLImageElement).src = effectiveSupabaseLogo;
                     }}
                   />
                 </div>
@@ -319,7 +355,7 @@ export const SystemNotificationTab: React.FC<Props> = ({
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, badge_icon_url: e.target.value }))
                   }
-                  placeholder="/pwa-192.png"
+                  placeholder={effectiveSupabaseLogo}
                   className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white font-mono"
                 />
               </div>
@@ -328,8 +364,8 @@ export const SystemNotificationTab: React.FC<Props> = ({
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 <span className="text-[10px] text-slate-400">Pilihan Cepat:</span>
                 {[
-                  { label: 'Kawacanaan Utama', url: '/pwa-192.png' },
-                  { label: 'Emblem LK', url: '/lk.png' },
+                  { label: 'Logo Kawacanaan (Supabase)', url: effectiveSupabaseLogo },
+                  { label: 'Emblem LK Default', url: '/lk.png' },
                   { label: 'Favicon', url: '/favicon.png' },
                 ].map((opt) => (
                   <button
@@ -590,7 +626,7 @@ export const SystemNotificationTab: React.FC<Props> = ({
                   {/* Status Bar Left Notification Icon (Kawacanaan Latest Emblem) */}
                   <div className="w-3.5 h-3.5 rounded bg-white/20 p-0.5 flex items-center justify-center">
                     <img
-                      src={form.badge_icon_url || '/pwa-192.png'}
+                      src={form.badge_icon_url || effectiveSupabaseLogo}
                       alt="Status Icon"
                       className="w-full h-full object-contain filter invert"
                     />
@@ -609,7 +645,7 @@ export const SystemNotificationTab: React.FC<Props> = ({
                   <div className="flex items-center gap-1.5">
                     <div className="w-4 h-4 rounded bg-slate-800 p-0.5 flex items-center justify-center overflow-hidden border border-slate-700">
                       <img
-                        src={form.badge_icon_url || '/pwa-192.png'}
+                        src={form.badge_icon_url || effectiveSupabaseLogo}
                         alt="App Icon"
                         className="w-full h-full object-contain"
                       />
@@ -653,7 +689,7 @@ export const SystemNotificationTab: React.FC<Props> = ({
                   {form.show_large_icon ? (
                     <div className="w-11 h-11 rounded-lg bg-slate-800 border border-slate-700 p-1 shrink-0 flex items-center justify-center">
                       <img
-                        src={form.large_icon_url || '/pwa-192.png'}
+                        src={form.large_icon_url || effectiveSupabaseLogo}
                         alt="Right Large Icon"
                         className="w-full h-full object-contain"
                       />
@@ -707,7 +743,7 @@ export const SystemNotificationTab: React.FC<Props> = ({
                 <li className="flex items-start gap-1.5">
                   <CheckCircle2 size={13} className="text-emerald-600 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Logo Status Bar Kiri:</strong> Diarahkan ke aset resmi Kawacanaan terbaru (<code className="font-mono text-slate-800">/pwa-192.png</code>).
+                    <strong>Logo Status Bar Kiri:</strong> Menggunakan logo resmi Kawacanaan yang terhubung dengan Supabase (<code className="font-mono text-slate-800 break-all">{effectiveSupabaseLogo}</code>).
                   </span>
                 </li>
                 <li className="flex items-start gap-1.5">
