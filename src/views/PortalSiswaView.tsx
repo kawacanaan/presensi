@@ -24,6 +24,7 @@ import {
   ArrowLeft,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   CheckCircle2,
   Clock,
   XCircle,
@@ -1714,31 +1715,6 @@ export const PortalSiswaView: React.FC = () => {
                       </div>
                     </div>
                   </div>
-
-                  {/* Notification Toggle Button (Sakelar On / Off Push Notifikasi) */}
-                  <button
-                    type="button"
-                    onClick={handleTogglePushNotification}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black transition-all cursor-pointer shrink-0 shadow-2xs border ${
-                      devicePushActive
-                        ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 shadow-blue-500/10'
-                        : 'bg-slate-100/90 text-slate-600 border-slate-200 hover:bg-slate-200/90'
-                    }`}
-                    title={devicePushActive ? 'Notifikasi aktif. Klik untuk mematikan notifikasi.' : 'Notifikasi nonaktif. Klik untuk mengaktifkan notifikasi.'}
-                  >
-                    <Bell
-                      size={13}
-                      className={devicePushActive ? 'fill-blue-600 text-blue-600 animate-in zoom-in-75 duration-150' : 'text-slate-400'}
-                    />
-                    <span className="hidden xs:inline">
-                      {devicePushActive ? 'Notif Aktif' : 'Notif Mati'}
-                    </span>
-                    {devicePushActive ? (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                    )}
-                  </button>
                 </div>
 
                 {/* Hero Card: Absensi Hari Ini (Professional High-End Vector Banner Menyatu Sempurna) */}
@@ -3639,108 +3615,43 @@ export const PortalSiswaView: React.FC = () => {
               {/* TAB 2: APLIKASI (NOTIFIKASI, SUARA, KEAMANAN / KATA SANDI) */}
               {/* ----------------------------------------------------------------- */}
               {pengaturanTab === 'aplikasi' && (
-                <div className="space-y-4 animate-in fade-in duration-150">
-                  {/* 1. FITUR NOTIFIKASI (FUNGSI PERSIS SAMA SEPERTI BADGE LONCENG BERANDA) */}
-                  <div className={`rounded-3xl border p-4.5 space-y-3.5 transition-all shadow-xs ${
-                    devicePushActive
-                      ? 'bg-gradient-to-br from-blue-50 via-white to-sky-50/50 border-blue-200/90'
-                      : 'bg-white border-slate-200/90'
-                  }`}>
-                    {/* Header Notifikasi */}
-                    <div className="flex items-start justify-between gap-3">
+                <div className="space-y-3.5 animate-in fade-in duration-150">
+                  {/* 1. FITUR STATUS NOTIFIKASI (TAMPILAN DISAMAKAN DENGAN SUARA FEEDBACK PRESENSI) */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs transition-colors ${
-                          devicePushActive
-                            ? 'bg-blue-600 text-white shadow-blue-500/25'
-                            : 'bg-slate-100 text-slate-500'
+                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
+                          devicePushActive ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'
                         }`}>
-                          <BellRing size={22} className={devicePushActive ? 'animate-bounce' : ''} />
+                          <BellRing size={18} />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-black text-slate-900 leading-tight">
-                              Push Notifikasi Presensi
-                            </h3>
-                            {devicePushActive ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                <span>Notif Aktif</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                <span>Notif Mati</span>
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-snug">
-                            Notifikasi resmi kehadiran di bilah status ponsel (status bar Android).
-                          </p>
+                          <h4 className="text-xs font-black text-slate-900 leading-tight">
+                            Status Notifikasi
+                          </h4>
+                          <span className="text-[11px] text-slate-500 font-medium block">
+                            Pemberitahuan presensi di bilah status ponsel
+                          </span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* SAKELAR UTAMA PUSH NOTIFIKASI (FUNGSI IDENTIK DENGAN BADGE LONCENG BERANDA) */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <span className="text-xs font-black text-slate-900 block">
-                          {devicePushActive ? 'Status Notifikasi Aktif' : 'Status Notifikasi Nonaktif'}
-                        </span>
-                        <span className="text-[11px] text-slate-500 font-medium block">
-                          {devicePushActive
-                            ? 'Ketuk sakelar untuk menonaktifkan notifikasi'
-                            : 'Ketuk sakelar untuk meminta izin & mengaktifkan'}
-                        </span>
-                      </div>
-
-                      {/* Interactive Toggle Switch */}
-                      <button
-                        type="button"
-                        id="btn-toggle-notification-settings"
-                        onClick={handleTogglePushNotification}
-                        className={`relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          devicePushActive ? 'bg-blue-600' : 'bg-slate-300'
-                        }`}
-                        title={devicePushActive ? 'Klik untuk mematikan notifikasi' : 'Klik untuk mengaktifkan notifikasi'}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                            devicePushActive ? 'translate-x-6' : 'translate-x-0'
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          id="btn-toggle-notification-settings"
+                          onClick={handleTogglePushNotification}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                            devicePushActive ? 'bg-blue-600' : 'bg-slate-300'
                           }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Tombol Uji Coba Notifikasi Langsung */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <span className="text-[11px] font-bold text-slate-700 block">
-                          Tes Tampilan Bilah Status
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-medium block">
-                          Cek logo Kawacanaan di status bar ponsel
-                        </span>
+                          title={devicePushActive ? 'Klik untuk mematikan notifikasi' : 'Klik untuk mengaktifkan notifikasi'}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                              devicePushActive ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={handleSendTestPush}
-                        disabled={!devicePushActive || isSendingTestPush}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-black text-xs transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
-                        title={!devicePushActive ? 'Aktifkan notifikasi terlebih dahulu' : 'Kirim tes notifikasi'}
-                      >
-                        {isSendingTestPush ? (
-                          <>
-                            <RefreshCw size={13} className="animate-spin" />
-                            <span>Mengirim...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Send size={13} />
-                            <span>Kirim Uji Coba</span>
-                          </>
-                        )}
-                      </button>
                     </div>
                   </div>
 
@@ -3800,84 +3711,111 @@ export const PortalSiswaView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 3. FITUR KEAMANAN (KATA SANDI SISWA) */}
-                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                        <KeyRound size={18} />
+                  {/* 3. FITUR KEAMANAN & KATA SANDI (TAMPILAN DISAMAKAN DENGAN SUARA FEEDBACK, KOLOM MUNCUL SAAT DIKLIK) */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-xs transition-all">
+                    {/* Header bar: Tampilan disamakan persis seperti Suara Feedback Presensi */}
+                    <div 
+                      onClick={() => {
+                        triggerHaptic('tap');
+                        setShowPasswordSection((prev) => !prev);
+                      }}
+                      className="flex items-center justify-between cursor-pointer select-none group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
+                          <KeyRound size={18} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 leading-tight">
+                            Keamanan & Kata Sandi
+                          </h4>
+                          <span className="text-[11px] text-slate-500 font-medium block">
+                            Perbarui kata sandi login akun siswa
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-xs font-black text-slate-900 leading-tight">
-                          Keamanan & Kata Sandi
-                        </h4>
-                        <span className="text-[11px] text-slate-500 font-medium">
-                          Perbarui kata sandi login akun siswa
+
+                      {/* Tombol Aksi / Indikator (Bukan toggle sakelar) */}
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[11px] font-black px-2.5 py-1 rounded-xl transition-all flex items-center gap-1 ${
+                          showPasswordSection 
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'bg-slate-50 text-slate-600 border border-slate-200 group-hover:bg-slate-100'
+                        }`}>
+                          <span>{showPasswordSection ? 'Tutup' : 'Ubah'}</span>
+                          <ChevronDown size={14} className={`transition-transform duration-200 ${showPasswordSection ? 'rotate-180' : ''}`} />
                         </span>
                       </div>
                     </div>
 
-                    <form onSubmit={handleChangeStudentPassword} className="pt-2 border-t border-slate-100 space-y-2.5">
-                      {passwordFeedback && (
-                        <div className={`p-2.5 rounded-xl text-xs font-bold flex items-start gap-2 ${
-                          passwordFeedback.type === 'success'
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : 'bg-rose-50 text-rose-800 border border-rose-200'
-                        }`}>
-                          {passwordFeedback.type === 'success' ? (
-                            <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
-                          ) : (
-                            <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
-                          )}
-                          <span>{passwordFeedback.text}</span>
-                        </div>
-                      )}
+                    {/* Kolom Input Kata Sandi Baru: Hanya muncul saat ditekan/diklik */}
+                    {showPasswordSection && (
+                      <form onSubmit={handleChangeStudentPassword} className="pt-3.5 mt-3.5 border-t border-slate-100 space-y-2.5 animate-in slide-in-from-top-2 duration-200">
+                        {passwordFeedback && (
+                          <div className={`p-2.5 rounded-xl text-xs font-bold flex items-start gap-2 ${
+                            passwordFeedback.type === 'success'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                              : 'bg-rose-50 text-rose-800 border border-rose-200'
+                          }`}>
+                            {passwordFeedback.type === 'success' ? (
+                              <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                            ) : (
+                              <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+                            )}
+                            <span>{passwordFeedback.text}</span>
+                          </div>
+                        )}
 
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                          Kata Sandi Baru
-                        </label>
-                        <div className="relative">
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                            Kata Sandi Baru
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showPasswordText ? 'text' : 'password'}
+                              value={newPasswordVal}
+                              onChange={(e) => setNewPasswordVal(e.target.value)}
+                              placeholder="Minimal 8 karakter"
+                              required
+                              className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-9 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowPasswordText((v) => !v);
+                              }}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                            >
+                              {showPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                            Konfirmasi Kata Sandi Baru
+                          </label>
                           <input
                             type={showPasswordText ? 'text' : 'password'}
-                            value={newPasswordVal}
-                            onChange={(e) => setNewPasswordVal(e.target.value)}
-                            placeholder="Minimal 8 karakter"
+                            value={confirmPasswordVal}
+                            onChange={(e) => setConfirmPasswordVal(e.target.value)}
+                            placeholder="Ketik ulang kata sandi baru"
                             required
-                            className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-9 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                            className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all"
                           />
-                          <button
-                            type="button"
-                            onClick={() => setShowPasswordText((v) => !v)}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                          >
-                            {showPasswordText ? <EyeOff size={15} /> : <Eye size={15} />}
-                          </button>
                         </div>
-                      </div>
 
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                          Konfirmasi Kata Sandi Baru
-                        </label>
-                        <input
-                          type={showPasswordText ? 'text' : 'password'}
-                          value={confirmPasswordVal}
-                          onChange={(e) => setConfirmPasswordVal(e.target.value)}
-                          placeholder="Ketik ulang kata sandi baru"
-                          required
-                          className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all"
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={isChangingPassword}
-                        className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
-                      >
-                        <Lock size={13} />
-                        <span>{isChangingPassword ? 'Menyimpan Sandi...' : 'Perbarui Kata Sandi'}</span>
-                      </button>
-                    </form>
+                        <button
+                          type="submit"
+                          disabled={isChangingPassword}
+                          className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+                        >
+                          <Lock size={13} />
+                          <span>{isChangingPassword ? 'Menyimpan Sandi...' : 'Perbarui Kata Sandi'}</span>
+                        </button>
+                      </form>
+                    )}
                   </div>
                 </div>
               )}
