@@ -333,15 +333,16 @@ export async function sendAttendancePushToStudent(
       .replace('{jam}', time);
   }
 
-  // Logo kanan: jika show_large_icon = false, kosongkan icon agar logo di sebelah kanan dihapus total
-  const iconUrl = notifConfig.show_large_icon ? (notifConfig.large_icon_url || notifConfig.badge_icon_url || '/lk.png') : '';
+  // Logo notifikasi Android & Windows: selalu isi icon dan badge dengan Logo Kawacanaan
+  // agar Android OS / Google Chrome tidak pernah memasang logo Chrome sebagai fallback
   const badgeUrl = (notifConfig.badge_icon_url && notifConfig.badge_icon_url !== '/pwa-192.png') ? notifConfig.badge_icon_url : '/lk.png';
+  const iconUrl = (notifConfig.show_large_icon && notifConfig.large_icon_url) ? notifConfig.large_icon_url : badgeUrl;
 
   const payload = JSON.stringify({
     title,
     body: bodyText,
-    icon: iconUrl, // Empty string = tidak ada logo di sebelah kanan
-    badge: badgeUrl, // Logo status bar kiri
+    icon: iconUrl, // Logo resmi Kawacanaan (mencegah fallback ke logo Chrome)
+    badge: badgeUrl, // Logo status bar kiri Android & Windows
     tag: `attendance-${studentId}-${type}`,
     url: '/',
     studentId,
@@ -476,15 +477,16 @@ export async function sendLeaveDecisionPushToStudent(
     if (notes) bodyText += ` Catatan: ${notes}`;
   }
 
-  // Logo kanan: jika show_large_icon = false, kosongkan icon agar logo di sebelah kanan dihapus total
-  const iconUrl = notifConfig.show_large_icon ? (notifConfig.large_icon_url || notifConfig.badge_icon_url || '/lk.png') : '';
+  // Logo notifikasi Android & Windows: selalu isi icon dan badge dengan Logo Kawacanaan
+  // agar Android OS / Google Chrome tidak pernah memasang logo Chrome sebagai fallback
   const badgeUrl = (notifConfig.badge_icon_url && notifConfig.badge_icon_url !== '/pwa-192.png') ? notifConfig.badge_icon_url : '/lk.png';
+  const iconUrl = (notifConfig.show_large_icon && notifConfig.large_icon_url) ? notifConfig.large_icon_url : badgeUrl;
 
   const payload = JSON.stringify({
     title,
     body: bodyText,
-    icon: iconUrl, // Empty string = tidak ada logo di sebelah kanan
-    badge: badgeUrl, // Logo status bar kiri
+    icon: iconUrl, // Logo resmi Kawacanaan (mencegah fallback ke logo Chrome)
+    badge: badgeUrl, // Logo status bar kiri Android & Windows
     tag: `leave-decision-${studentId}-${Date.now()}`,
     url: '/',
     studentId,

@@ -56,6 +56,10 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
   try {
     const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    // Proaktif picu update Service Worker agar ponsel langsung memperbarui sw.js ke v5
+    try {
+      void reg.update();
+    } catch (_) {}
     return reg;
   } catch (err) {
     console.warn('[SW] PWA Service worker registration error:', err);

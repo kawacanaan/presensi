@@ -245,18 +245,19 @@ export const SystemNotificationTab: React.FC<Props> = ({
 
       // Bangun options sesuai pengaturan aktif
       const badgeIcon = form.badge_icon_url || effectiveSupabaseLogo;
+      const notificationIcon = (form.show_large_icon && form.large_icon_url)
+        ? form.large_icon_url
+        : badgeIcon;
+
       const notificationOptions: NotificationOptions = {
         body: form.show_large_icon
           ? 'Contoh notifikasi: Logo sebelah kanan aktif.'
-          : 'Contoh notifikasi: Logo sebelah kanan telah dihapus, tampilan bersih & teks proporsional.',
+          : 'Contoh notifikasi: Tampilan bersih dengan Logo Kawacanaan pada icon notifikasi.',
         badge: badgeIcon,
+        icon: notificationIcon,
         tag: `test-superadmin-${Date.now()}`,
         requireInteraction: form.require_interaction,
       };
-
-      if (form.show_large_icon && form.large_icon_url) {
-        notificationOptions.icon = form.large_icon_url;
-      }
 
       // Coba lewat service worker registration jika aktif, fallback ke native window Notification
       let shown = false;

@@ -1,5 +1,5 @@
 // Service Worker Kawacanaan Presensi - PWA & Web Push Notification
-const CACHE_NAME = 'kawacanaan-pwa-v3';
+const CACHE_NAME = 'kawacanaan-pwa-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -75,8 +75,8 @@ self.addEventListener('push', (event) => {
   let payload = {
     title: 'Kawacanaan Presensi',
     body: 'Pemberitahuan presensi baru dari sekolah.',
-    icon: '',
-    badge: '/pwa-192.png',
+    icon: '/lk.png',
+    badge: '/lk.png',
     tag: 'kawacanaan-attendance',
     url: '/',
     data: { url: '/' },
@@ -100,9 +100,19 @@ self.addEventListener('push', (event) => {
   }
 
   const title = payload.title || 'Kawacanaan Presensi';
+  
+  // Pastikan icon dan badge selalu terisi logo Kawacanaan agar Chrome tidak menimpa dengan logo browsernya
+  const effectiveIcon = (payload.icon && String(payload.icon).trim().length > 0)
+    ? payload.icon.trim()
+    : ((payload.badge && String(payload.badge).trim().length > 0) ? payload.badge.trim() : '/lk.png');
+  const effectiveBadge = (payload.badge && String(payload.badge).trim().length > 0)
+    ? payload.badge.trim()
+    : effectiveIcon;
+
   const options = {
     body: payload.body,
-    badge: (payload.badge && String(payload.badge).trim()) ? payload.badge : '/pwa-192.png',
+    icon: effectiveIcon,
+    badge: effectiveBadge,
     vibrate: [200, 100, 200, 100, 200],
     tag: payload.tag || `attendance-${Date.now()}`,
     renotify: true,
@@ -113,11 +123,6 @@ self.addEventListener('push', (event) => {
       { action: 'close', title: 'Tutup' }
     ]
   };
-
-  // Hanya sematkan options.icon (logo besar di sebelah kanan pada Android) jika payload.icon ada dan tidak kosong
-  if (payload.icon && typeof payload.icon === 'string' && payload.icon.trim().length > 0) {
-    options.icon = payload.icon;
-  }
 
   event.waitUntil(self.registration.showNotification(title, options));
 });
